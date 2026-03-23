@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Backlog par technicien</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('backlog_technicien.static', filename='css/backlog_technicien_v2.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="backlog-tech-page">
+    <div class="tech-shell">
+        <header class="tech-header">
+            <div>
+                <h1>Backlog par technicien</h1>
+                <p>Page complémentaire dédiée au filtrage par équipe ou technicien, sans impacter la page principale.</p>
+            </div>
+            <div class="tech-actions">
+                <a class="btn-secondary" href="/">← Retour tableau principal</a>
+                <button id="exportExcelBtn" class="btn-primary">Export Excel</button>
+            </div>
+        </header>
+
+        <section class="tech-filters-card">
+            <div class="filter-grid">
+                <div class="field">
+                    <label for="equipeSelect">Equipe</label>
+                    <select id="equipeSelect">
+                        <option value="">Toutes les équipes</option>
+                        {% for team in teams.keys() %}
+                        <option value="{{ team }}">{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="technicienSelect">Technicien</label>
+                    <select id="technicienSelect">
+                        <option value="">Tous les techniciens</option>
+                    </select>
+                </div>
+                <div class="field field-search">
+                    <label for="tableSearch">Filtre temps réel</label>
+                    <input id="tableSearch" type="text" placeholder="Ticket, produit, client, gouvernorat..." />
+                </div>
+                <div class="field field-status">
+                    <label>Source de données</label>
+                    <div id="sourcePath" class="source-box">Chargement…</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="kpi-grid">
+            <div class="kpi-card"><span>Total tickets</span><strong id="kpiTotal">0</strong></div>
+            <div class="kpi-card"><span>Age moyen</span><strong id="kpiAgeMoyen">0</strong></div>
+            <div class="kpi-card"><span>Age max</span><strong id="kpiAgeMax">0</strong></div>
+            <div class="kpi-card"><span>WF TT = Oui</span><strong id="kpiWfTt">0</strong></div>
+            <div class="kpi-card"><span>Date Réc renseignée</span><strong id="kpiDateRec">0</strong></div>
+        </section>
+
+        <section class="dashboard-grid">
+            <div class="panel chart-panel">
+                <div class="panel-title">Tickets par produit</div>
+                <canvas id="productChart"></canvas>
+            </div>
+            <div class="panel chart-panel">
+                <div class="panel-title">Répartition par Age d’affectation</div>
+                <canvas id="ageChart"></canvas>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-title">Mini dashboard par équipe</div>
+            <div class="table-wrap small-table-wrap">
+                <table id="miniDashboardTable">
+                    <thead>
+                        <tr>
+                            <th>Equipe</th>
+                            <th>Total tickets</th>
+                            <th>Age moyen</th>
+                            <th>Age max</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-title">Détail backlog sélectionné</div>
+            <div class="table-wrap">
+                <table id="backlogTable">
+                    <thead>
+                        <tr>
+                            <th>Numéro ticket</th>
+                            <th>Champ complémentaire 3</th>
+                            <th>Produit</th>
+                            <th>Date Affectation</th>
+                            <th>Adresse correspondant 1</th>
+                            <th>Nom correspondant 1</th>
+                            <th>Site client correspondant 1</th>
+                            <th>Gouvernorat</th>
+                            <th>Equipe</th>
+                            <th>Technicien</th>
+                            <th>Age Affectation</th>
+                            <th>Etat WF TT</th>
+                            <th>Date Réc</th>
+                            <th>Mobile correspondant 1</th>
+                            <th>Date de création</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="emptyState" class="empty-state hidden">Aucune donnée à afficher pour cette sélection.</div>
+        </section>
+    </div>
+
+    <script>
+        window.BACKLOG_TEAMS = {{ teams|tojson }};
+    </script>
+    <script src="{{ url_for('backlog_technicien.static', filename='js/backlog_technicien_v2.js') }}"></script>
+</body>
+</html>

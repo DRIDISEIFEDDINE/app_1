@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BacklogMS</title>
+    <link rel="icon" type="image/png" href="/static_site_icon" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="topbar">
+            <div class="topbar-inner">
+                <div class="brand-left">
+                    <div class="logo-box">
+                        <img src="/static_orange_logo" alt="Orange" class="orange-logo" />
+                    </div>
+                </div>
+
+                <div class="brand-center">
+                    <h1 id="animatedTitle" class="animated-title" aria-label="BacklogMS">BacklogMS</h1>
+                </div>
+
+                <div class="brand-right"></div>
+            </div>
+        </header>
+
+        <section class="card">
+            <form id="uploadForm">
+                <input
+    type="file"
+    id="files"
+    name="files"
+    multiple
+    accept=".xlsx,.xls,.xlsm,.xltx,.xltm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+/>
+                <div class="actions">
+                    <button type="submit" class="btn primary">IMPORTER DATA</button>
+                    <button type="button" id="btnCorrect" class="btn success" disabled>Correction Adresse et GPS</button>
+                    <a id="btnDownload" class="btn secondary disabled" href="#" download>EXPORTER BACKLOG</a>
+                    <a id="btnPdf" class="btn danger disabled" href="/export_pdf">Export Dashboard PDF</a>
+                    <button type="button" id="btnPrintPdf" class="btn warning" disabled>Imprimer PDF</button>
+                    <a id="btnBacklogTech" class="btn info" href="/backlog-technicien">Backlog par technicien</a>
+                </div>
+            </form>
+
+            <div id="progressWrapper" class="progress-wrapper hidden">
+                <div class="progress-label" id="progressLabel">Traitement en cours...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-detail" id="progressDetail">En attente d'une action.</div>
+            </div>
+
+            <div id="status" class="status sr-only-status"></div>
+            <div id="correctionSummary" class="correction-summary hidden"></div>
+        </section>
+
+        <section class="kpis">
+            <div class="kpi">
+                <span class="label">Total tickets</span>
+                <span class="value" id="kpiTotal">0</span>
+            </div>
+
+            <div class="kpi alert kpi-exportable" id="kpiAlertsCard">
+                <div class="kpi-export-header">
+                    <div>
+                        <span class="label">Alertes &gt; 10 jours</span>
+                        <span class="value" id="kpiAlerts">0</span>
+                        <span class="kpi-export-hint">Cliquer pour exporter</span>
+                    </div>
+                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
+                </div>
+                <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Age Affectation &gt; 10 jours.</div>
+            </div>
+
+            <div class="kpi kpi-exportable" id="kpiRetourFSICard">
+                <div class="kpi-export-header">
+                    <div>
+                        <span class="label">Total Ticket Retour FSI</span>
+                        <span class="value" id="kpiEquipe">0</span>
+                        <span class="kpi-export-hint">Cliquer pour exporter</span>
+                    </div>
+                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
+                </div>
+                <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Retour FSI.</div>
+            </div>
+
+            <div class="kpi kpi-exportable" id="kpiWF20Card">
+                <div class="kpi-export-header">
+                    <div>
+                        <span class="label">Alertes WF TT &gt;= 20 jours</span>
+                        <span class="value" id="kpiWF20">0</span>
+                        <span class="kpi-export-hint">Cliquer pour exporter</span>
+                    </div>
+                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
+                </div>
+                <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Age WF TT &gt;= 20 jours.</div>
+            </div>
+
+            <div class="kpi warning kpi-exportable" id="kpiNoOwnerCard">
+                <div class="kpi-export-header">
+                    <div>
+                        <span class="label">Tickets sans responsable</span>
+                        <span class="value" id="kpiNoOwner">0</span>
+                        <span class="kpi-export-hint">Cliquer pour exporter</span>
+                    </div>
+                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
+                </div>
+                <div class="kpi-tooltip">Exporter le détail Excel des tickets sans responsable.</div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="card chart-card">
+                <h3>Backlog par Equipe</h3>
+                <canvas id="chartEquipe"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3>Tickets par Technicien</h3>
+                <canvas id="chartTech"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3>Tickets par Produit</h3>
+                <canvas id="chartProd"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3 class="danger-text">Alertes WF TT &gt;= 20 jours</h3>
+                <canvas id="chartAlertsWF20"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3>Tickets par Gouvernorat</h3>
+                <canvas id="chartGov"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h3 class="danger-text">Tickets qui dépassent 10 jours de la date d'affectation</h3>
+                <canvas id="chartAlertsAffect10"></canvas>
+            </div>
+        </section>
+
+        <section class="card">
+            <h3>Tickets par technicien et par produit</h3>
+            <div id="techProductCards" class="tech-cards"></div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
