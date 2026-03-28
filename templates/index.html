@@ -59,10 +59,21 @@
         </section>
 
         <section class="kpis">
-            <div class="kpi">
-                <span class="label">Total tickets</span>
-                <span class="value" id="kpiTotal">0</span>
-            </div>
+           <div class="kpi" id="kpiMailCard">
+    <div class="kpi-export-header">
+        <div>
+            <span class="label">Total tickets</span>
+            <span class="value" id="kpiTotal">0</span>
+        </div>
+
+        <!-- ICONE MAIL -->
+        <img src="/static_mail_icon" alt="Mail" class="card-excel-icon kpi-excel-icon" id="mailIcon" />
+    </div>
+
+    <div class="kpi-tooltip">
+        Cliquer pour envoyer un mail avec le backlog
+    </div>
+</div>
 
             <div class="kpi alert kpi-exportable" id="kpiAlertsCard">
                 <div class="kpi-export-header">

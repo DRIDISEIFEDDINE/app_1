@@ -574,3 +574,57 @@ const btnBacklogTech = document.getElementById("btnBacklogTech");
 if (btnBacklogTech) {
     btnBacklogTech.setAttribute("title", "Ouvrir la page Backlog par technicien");
 }
+document.addEventListener("DOMContentLoaded", () => {
+
+    const mailIcon = document.getElementById("mailIcon");
+
+    if (mailIcon) {
+        mailIcon.style.cursor = "pointer";
+
+        mailIcon.title = "Envoyer mail backlog";
+
+        mailIcon.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            if (!confirm("Envoyer le backlog par mail ?")) return;
+
+ sendMailWithCharts();
+  });
+    }
+
+});
+
+async function sendMailWithCharts() {
+
+    const charts = [
+        "chartTech",
+        "chartAlertsAffect10",
+        "chartGov",
+        "chartProd"
+    ];
+
+    const images = {};
+
+    charts.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+            images[id] = canvas.toDataURL("image/png");
+        }
+    });
+
+    try {
+        const response = await fetch("/send_mail", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ charts: images })
+        });
+
+        const data = await response.json();
+        alert(data.message || "Mail envoyé !");
+
+    } catch (error) {
+        alert("Erreur lors de l'envoi du mail");
+    }
+}

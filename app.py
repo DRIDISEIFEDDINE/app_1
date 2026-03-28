@@ -1,5 +1,8 @@
-from __future__ import annotations
+LAST_DF = None
 
+import pandas as pd
+import numpy as np
+from flask import Flask
 import hashlib
 import re
 import traceback
@@ -20,7 +23,10 @@ def _safe_md5(data=b"", *args, **kwargs):
 
 hashlib.md5 = _safe_md5
 
+
 import pandas as pd
+import numpy as np
+from flask import Flask
 from flask import Flask, jsonify, render_template, request, send_file
 from geopy.extra.rate_limiter import RateLimiter
 from geopy.geocoders import Nominatim
@@ -90,8 +96,6 @@ def _shared_backlog_loader() -> pd.DataFrame:
         return pd.read_excel(LAST_EXCEL_EXPORT, sheet_name="Data", dtype=str, engine="openpyxl")
     except Exception:
         return pd.DataFrame()
-
-app.config["BACKLOGMS_SHARED_LOADER"] = _shared_backlog_loader
 
 app.config["BACKLOGMS_SHARED_LOADER"] = _shared_backlog_loader
 
@@ -576,11 +580,13 @@ def merge_uploaded_files(file_paths: list[Path]) -> pd.DataFrame:
 
     if not frames:
         return pd.DataFrame()
-
+    
     merged_df = pd.concat(frames, ignore_index=True)
     merged_df = enrich_with_wftt_file(merged_df, wf_tt_file)
-
+    global LAST_DF
+    LAST_DF = merged_df
     return merged_df
+
 
 
 def enrich_addresses_and_gps(df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
@@ -1775,7 +1781,201 @@ def export_pdf():
         traceback.print_exc()
         return "Erreur lors de l'exportation PDF : " + str(e) + "\n" + traceback.format_exc(), 500
 
+from flask import jsonify
+import smtplib
+from email.message import EmailMessage
 
+@app.route("/static_mail_icon")
+def static_mail_icon():
+    return send_file(r"C:\xampp\htdocs\app_1\Icone MAIL.png")
+
+
+from flask import request, jsonify
+from email.message import EmailMessage
+from datetime import datetime
+import base64
+import smtplib
+import os
+
+@app.route("/send_mail", methods=["POST"])
+def send_mail():
+    try:
+        data = request.get_json()
+        charts = data.get("charts", {})
+
+        # =========================
+        # KPI
+        # =========================
+        global LAST_DF
+
+        if LAST_DF is not None:
+            total = len(LAST_DF)
+            alerts10 = len(LAST_DF[LAST_DF["Age Affectation"] > 10])
+            wf20 = len(LAST_DF[LAST_DF["Age WF TT"] >= 20])
+            retour_fsi = len(LAST_DF[LAST_DF["Etat WF TT"] == "Retour FSI"])
+        else:
+            total = alerts10 = wf20 = retour_fsi = 0
+
+        now = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+        msg = EmailMessage()
+        msg["Subject"] = f"BacklogMS - {now}"
+        msg["From"] = "intervention.orange.tn@gmail.com"
+        msg["To"] = "seifeddine.dridi@orange.com"
+        msg["Cc"] = "seifeddine.dridi@orange.com"
+
+        # =========================
+        # HTML (SANS HEADER)
+        # =========================
+        html = f"""
+<html>
+<body style="font-family:Segoe UI, Arial; background:#f3f2f1; padding:20px;">
+
+<div style="background:white; padding:20px; border-radius:10px;">
+
+<p><b>Bonjour,</b></p>
+<p>Veuillez trouver le <b>backlog actuel</b>.</p>
+
+<h3 style="margin-top:20px; color:#444;">📊 KPI Dashboard</h3>
+
+<table style="width:100%; text-align:center; border-spacing:10px;">
+<tr>
+
+<td style="background:#f9fafb; padding:15px; border-radius:8px;">
+    <div style="font-size:12px;">Total</div>
+    <div style="font-size:20px; color:#f97316; font-weight:bold;">{total}</div>
+</td>
+
+<td style="background:#fff7ed; padding:15px; border-radius:8px;">
+    <div style="font-size:12px;">> 10 jours</div>
+    <div style="font-size:20px; color:#dc2626; font-weight:bold;">{alerts10}</div>
+</td>
+
+<td style="background:#fef2f2; padding:15px; border-radius:8px;">
+    <div style="font-size:12px;">WF TT ≥ 20</div>
+    <div style="font-size:20px; color:#dc2626; font-weight:bold;">{wf20}</div>
+</td>
+
+<td style="background:#ecfdf5; padding:15px; border-radius:8px;">
+    <div style="font-size:12px;">Retour FSI</div>
+    <div style="font-size:20px; color:#16a34a; font-weight:bold;">{retour_fsi}</div>
+</td>
+
+</tr>
+</table>
+
+<h3 style="margin-top:25px; color:#444;">📈 Graphiques</h3>
+"""
+
+        # =========================
+        # TITRES GRAPHES
+        # =========================
+        chart_titles = {
+            "chartTech": "Tickets par Technicien",
+            "chartAlertsAffect10": "Tickets > 10 jours",
+            "chartGov": "Tickets par Gouvernorat",
+            "chartProd": "Tickets par Produit"
+        }
+
+        # =========================
+        # GRAPHES
+        # =========================
+        for i, (key, img_data) in enumerate(charts.items()):
+            cid = f"chart{i}"
+            title = chart_titles.get(key, "Graphique")
+
+            html += f"""
+            <div style="margin-top:25px;">
+                <div style="font-weight:bold; margin-bottom:8px;">
+                    📊 {title}
+                </div>
+                <img src="cid:{cid}" 
+                     style="width:100%; max-width:650px; border-radius:8px;">
+            </div>
+            """
+
+        # =========================
+        # FOOTER
+        # =========================
+        html += """
+<br><br>
+<p>Cordialement</p>
+
+<div style="font-size:13px; line-height:1.6;">
+<b>DRIDI Seifeddine</b><br>
+Chef de service Intervention Multiservices<br>
+ORANGE / MEA / MENA / TUNISIA / DRS<br><br>
+
+📞 +216 30012999<br>
+📱 +216 50012999<br>
+</div>
+
+</div>
+</body>
+</html>
+"""
+
+        # =========================
+        # INJECTION HTML
+        # =========================
+        msg.set_content("BacklogMS")
+        msg.add_alternative(html, subtype="html")
+
+        # =========================
+        # AJOUT GRAPHES (images)
+        # =========================
+        for i, (key, img_data) in enumerate(charts.items()):
+            cid = f"chart{i}"
+            img_bytes = base64.b64decode(img_data.split(",")[1])
+
+            msg.get_body("html").add_related(
+                img_bytes,
+                maintype="image",
+                subtype="png",
+                cid=cid
+            )
+
+        # =========================
+        # PJ EXCEL
+        # =========================
+        global LAST_EXCEL_EXPORT
+        if LAST_EXCEL_EXPORT:
+            with open(LAST_EXCEL_EXPORT, "rb") as f:
+                msg.add_attachment(
+                    f.read(),
+                    maintype="application",
+                    subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    filename="Backlog.xlsx"
+                )
+
+        # =========================
+        # PJ PDF (CORRIGÉ)
+        # =========================
+        pdf_path = os.path.join(os.getcwd(), "backlog_dashboard.pdf")
+
+        if os.path.exists(pdf_path):
+            with open(pdf_path, "rb") as f:
+                msg.add_attachment(
+                    f.read(),
+                    maintype="application",
+                    subtype="pdf",
+                    filename="Rapport_Backlog.pdf"
+                )
+        else:
+            print("⚠ PDF non trouvé :", pdf_path)
+
+        # =========================
+        # SMTP
+        # =========================
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.starttls()
+            smtp.login("intervention.orange.tn@gmail.com", "cveduqokjdjqrawi")
+            smtp.send_message(msg)
+
+        return jsonify({"message": "📧 Mail envoyé avec PDF !"})
+
+    except Exception as e:
+        return jsonify({"message": str(e)})
 @app.route("/download/<path:filename>")
 def download_file(filename):
     full_path = OUTPUT_FOLDER / filename
