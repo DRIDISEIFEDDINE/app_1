@@ -78,7 +78,7 @@ body {
 }
 
 .card {
-    background: white;
+    background: #fff7ed;
     border-radius: 14px;
     padding: 20px;
     margin-bottom: 20px;
@@ -196,15 +196,14 @@ a.disabled {
 
 .kpis {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(6, minmax(160px, 1fr));
+    gap: 10px;
 }
-
 .kpi {
-    background: white;
+     background: #fff7ed;
     border-radius: 14px;
-    padding: 18px;
+     padding: 8px 10px;
+    min-height: 75px;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
     border-left: 6px solid #d97706;
 }
@@ -666,3 +665,83 @@ a.disabled {
 .info:hover {
     background: #1d4ed8;
 }
+.kpi.fire {
+    border-left-color: #f97316;
+    background: #fff7ed;
+}
+
+.kpi.fire .value {
+    color: #ea580c;
+}
+/* 🔥 BADGE STYLE (remplace l'ancien flame-icon) */
+.flame-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    margin-left: 6px;
+
+    padding: 2px 6px;
+    border-radius: 999px;
+
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: #ffffff;
+
+    box-shadow: 0 2px 6px rgba(249, 115, 22, 0.35);
+
+    line-height: 1;
+
+    animation: flamePulse 1.6s ease-in-out infinite;
+}
+
+/* 🔴 version rouge */
+.flame-icon.red {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+}
+
+/* animation */
+@keyframes flamePulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+.kpi {
+    min-height: 90px;
+}
+
+.kpi-export-header {
+    gap: 6px;
+}
+.card.card-dark {
+    background: linear-gradient(135deg, #0f0a05, #000000) !important;
+    color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+/* Texte */
+.card-dark .progress-label,
+.card-dark .progress-detail {
+    color: #ffedd5;
+}
+
+/* Status */
+.card-dark .status {
+    background: #2a1a0a;
+    border: 1px solid #f97316;
+    color: #fff7ed;
+}
+
+/* Progress */
+.card-dark .progress-bar {
+    background: #3b2a1a;
+}
+
+.card-dark .progress-fill {
+    background: linear-gradient(90deg, #f97316, #ea580c);
+}
+

@@ -6,6 +6,7 @@ let chartProd = null;
 let chartAlertsWF20 = null;
 let chartGov = null;
 let chartAlertsAffect10 = null;
+let chart5Days = null;
 let progressTimer = null;
 
 const btnPrintPdf = document.getElementById("btnPrintPdf");
@@ -288,7 +289,8 @@ function setTextIfExists(id, value) {
 
 function updateKpis(kpis) {
     const totalTickets = Number(kpis?.total_tickets ?? 0);
-    const totalAlerts = Number(kpis?.total_alerts ?? 0);
+    const tickets5j = Number(kpis?.tickets_5j ?? 0);
+    const totalAlerts10 = Number(kpis?.total_alerts ?? 0); // ✅ FIX
     const totalWf20 = Number(kpis?.total_wf20 ?? 0);
     const totalNoOwner = Number(kpis?.tickets_sans_responsable ?? 0);
 
@@ -296,10 +298,11 @@ function updateKpis(kpis) {
     const totalRetourFSI = String(totalRetourFSIValue);
 
     setTextIfExists("kpiTotal", String(totalTickets));
-    setTextIfExists("kpiAlerts", String(totalAlerts));
+    setTextIfExists("kpi5j", String(tickets5j));
+    setTextIfExists("kpiAlerts", String(totalAlerts10)); // ✅ FIX
     setTextIfExists("kpiWF20", String(totalWf20));
     setTextIfExists("kpiNoOwner", String(totalNoOwner));
-setTextIfExists("kpiEquipe", totalRetourFSI);
+    setTextIfExists("kpiEquipe", totalRetourFSI);
 }
 
 function renderTechnicianProductCards(cards) {
@@ -312,50 +315,57 @@ function renderTechnicianProductCards(cards) {
     }
 
     cards.forEach((card) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "tech-card tech-card-exportable";
+    const wrapper = document.createElement("div");
+    wrapper.className = "tech-card tech-card-exportable";
 
-        const totalAlerts10 = Number(card.alertes_10j ?? 0);
-        const techName = String(card.technicien ?? "").trim();
-        const hoverMessage = `Cliquer pour exporter le détail Excel des tickets de ${techName}.`;
+    const total5j = Number(card.tickets5j ?? 0);
+    const totalAlerts10 = Number(card.alerts10 ?? 0); // ✅ FIX ICI
 
-        let html = `
-            <div class="tech-card-header">
-                <h4>${techName}</h4>
-                <div class="tech-header-actions">
-                    <div class="tech-alert-badge">> 10 j : ${totalAlerts10}</div>
-                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon tech-excel-icon" />
-                </div>
+    const techName = String(card.technicien ?? "").trim();
+    const hoverMessage = `Cliquer pour exporter le détail Excel des tickets de ${techName}.`;
+
+    console.log("CARD DATA:", card);
+
+    let html = `
+        <div class="tech-card-header">
+            <h4>${techName}</h4>
+            <div class="tech-header-actions">
+                <div class="tech-alert-badge">> 10 j : ${totalAlerts10}</div>
+                <div class="tech-alert-badge">Toc = 5 j : ${total5j}</div>
+                <img src="/static_excel_icon" alt="Excel" class="card-excel-icon tech-excel-icon" />
             </div>
-            <div class="tech-card-tooltip">${hoverMessage}</div>
+        </div>
+        <div class="tech-card-tooltip">${hoverMessage}</div>
+    `;
+
+    card.details.forEach((item) => {
+        html += `
+            <div class="tech-item">
+                <span>${item.produit}</span>
+                <span class="count">${item.nombre}</span>
+            </div>
         `;
-
-        card.details.forEach((item) => {
-            html += `
-                <div class="tech-item">
-                    <span>${item.produit}</span>
-                    <span class="count">${item.nombre}</span>
-                </div>
-            `;
-        });
-
-        wrapper.innerHTML = html;
-        wrapper.setAttribute("title", hoverMessage);
-
-        wrapper.addEventListener("mouseenter", () => setHoverStatus(hoverMessage));
-        wrapper.addEventListener("mouseleave", () => restoreStatusAfterHover());
-        wrapper.addEventListener("click", () => {
-            window.location.href = `/export_tech_card_details/${encodeURIComponent(techName)}`;
-        });
-
-        container.appendChild(wrapper);
     });
+
+    wrapper.innerHTML = html;
+
+    wrapper.setAttribute("title", hoverMessage);
+
+    wrapper.addEventListener("mouseenter", () => setHoverStatus(hoverMessage));
+    wrapper.addEventListener("mouseleave", () => restoreStatusAfterHover());
+    wrapper.addEventListener("click", () => {
+        window.location.href = `/export_tech_card_details/${encodeURIComponent(techName)}`;
+    });
+
+    container.appendChild(wrapper);
+});
 }
 
 function updateDashboard(dashboard) {
     destroyIfExists(chartEquipe);
     destroyIfExists(chartTech);
     destroyIfExists(chartProd);
+    destroyIfExists(chart5Days);
     destroyIfExists(chartAlertsWF20);
     destroyIfExists(chartGov);
     destroyIfExists(chartAlertsAffect10);
@@ -405,7 +415,13 @@ function updateDashboard(dashboard) {
         "Tickets > 10 jours",
         "#cf3f2c"
     );
-
+    chart5Days = createBarChart(
+    "chart5Days",
+    dashboard.tickets_5j.labels,
+    dashboard.tickets_5j.values,
+    "Tickets = 5 jours",
+    "#f97316"
+    );
     updateKpis(dashboard.kpis);
     renderTechnicianProductCards(dashboard.technician_product_cards);
 }
@@ -510,6 +526,11 @@ function initKpiExportCards() {
             cardId: "kpiAlertsCard",
             kind: "alerts10",
             hoverMessage: "Cliquer sur la carte pour exporter le détail Excel des tickets avec Age Affectation > 10 jours."
+        },
+        {
+            cardId: "kpi5jCard",
+            kind: "tickets5j",
+            hoverMessage: "Cliquer pour exporter les tickets avec Age Affectation = 5 jours."
         },
         {
             cardId: "kpiRetourFSICard",

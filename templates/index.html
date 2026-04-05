@@ -27,7 +27,7 @@
             </div>
         </header>
 
-        <section class="card">
+        <section class="card card-dark">
             <form id="uploadForm">
                 <input
     type="file"
@@ -74,19 +74,40 @@
         Cliquer pour envoyer un mail avec le backlog
     </div>
 </div>
+<div class="kpi fire kpi-exportable" id="kpi5jCard">
+    <div class="kpi-export-header">
+        <div>
+            <span class="label">
+                Tickets = 5 jours
+                <span class="flame-icon">5j🔥 </span>
+            </span>
+            <span class="value" id="kpi5j">0</span>
+            <span class="kpi-export-hint">Cliquer pour exporter</span>
+        </div>
+        <img src="/static_excel_icon" class="card-excel-icon kpi-excel-icon" />
+    </div>
 
-            <div class="kpi alert kpi-exportable" id="kpiAlertsCard">
-                <div class="kpi-export-header">
-                    <div>
-                        <span class="label">Alertes &gt; 10 jours</span>
-                        <span class="value" id="kpiAlerts">0</span>
-                        <span class="kpi-export-hint">Cliquer pour exporter</span>
-                    </div>
-                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
-                </div>
-                <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Age Affectation &gt; 10 jours.</div>
-            </div>
+    <div class="kpi-tooltip">
+        Exporter les tickets avec Age Affectation = 5 jours
+    </div>
+</div>
+            <div class="kpi fire-red kpi-exportable" id="kpiAlertsCard">
+    <div class="kpi-export-header">
+        <div>
+            <span class="label">
+                Alertes > 10 jours
+                <span class="flame-icon red">🔥</span>
+            </span>
+            <span class="value" id="kpiAlerts">0</span>
+            <span class="kpi-export-hint">Cliquer pour exporter</span>
+        </div>
+        <img src="/static_excel_icon" class="card-excel-icon kpi-excel-icon" />
+    </div>
 
+    <div class="kpi-tooltip">
+        Exporter les tickets > 10 jours
+    </div>
+</div>
             <div class="kpi kpi-exportable" id="kpiRetourFSICard">
                 <div class="kpi-export-header">
                     <div>
@@ -99,17 +120,23 @@
                 <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Retour FSI.</div>
             </div>
 
-            <div class="kpi kpi-exportable" id="kpiWF20Card">
-                <div class="kpi-export-header">
-                    <div>
-                        <span class="label">Alertes WF TT &gt;= 20 jours</span>
-                        <span class="value" id="kpiWF20">0</span>
-                        <span class="kpi-export-hint">Cliquer pour exporter</span>
-                    </div>
-                    <img src="/static_excel_icon" alt="Excel" class="card-excel-icon kpi-excel-icon" />
-                </div>
-                <div class="kpi-tooltip">Exporter le détail Excel des tickets avec Age WF TT &gt;= 20 jours.</div>
-            </div>
+           <div class="kpi fire-red kpi-exportable" id="kpiWF20Card">
+    <div class="kpi-export-header">
+        <div>
+            <span class="label">
+                Alertes WF TT >= 20 jours
+                <span class="flame-icon red">🔥</span>
+            </span>
+            <span class="value" id="kpiWF20">0</span>
+            <span class="kpi-export-hint">Cliquer pour exporter</span>
+        </div>
+        <img src="/static_excel_icon" class="card-excel-icon kpi-excel-icon" />
+    </div>
+
+    <div class="kpi-tooltip">
+        Exporter les tickets WF >= 20 jours
+    </div>
+</div>
 
             <div class="kpi warning kpi-exportable" id="kpiNoOwnerCard">
                 <div class="kpi-export-header">
@@ -141,24 +168,26 @@
             </div>
 
             <div class="card chart-card">
-                <h3 class="danger-text">Alertes WF TT &gt;= 20 jours</h3>
-                <canvas id="chartAlertsWF20"></canvas>
-            </div>
-
-            <div class="card chart-card">
                 <h3>Tickets par Gouvernorat</h3>
                 <canvas id="chartGov"></canvas>
             </div>
-
+            <div class="card chart-card">
+                <h3>Tickets = 5 jours</h3>
+                <canvas id="chart5Days"></canvas>
+            </div>
             <div class="card chart-card">
                 <h3 class="danger-text">Tickets qui dépassent 10 jours de la date d'affectation</h3>
                 <canvas id="chartAlertsAffect10"></canvas>
             </div>
+             <div class="card chart-card">
+                <h3 class="danger-text">Alertes WF TT &gt;= 20 jours</h3>
+                <canvas id="chartAlertsWF20"></canvas>
+            </div>
         </section>
 
         <section class="card">
-            <h3>Tickets par technicien et par produit</h3>
-            <div id="techProductCards" class="tech-cards"></div>
+        <h3>Tickets par technicien et par produit</h3>
+           <div id="techProductCards" class="tech-cards"></div>
         </section>
     </div>
 

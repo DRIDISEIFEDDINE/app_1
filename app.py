@@ -1,5 +1,6 @@
 LAST_DF = None
-
+LAST_EXCEL_EXPORT = None
+LAST_EXPORT_FILE = "last_export.xlsx"
 import pandas as pd
 import numpy as np
 from flask import Flask
@@ -187,11 +188,18 @@ def governorate_to_team(governorate: str) -> str:
 def clean_product(value) -> str:
     if pd.isna(value):
         return ""
+
     s = str(value).strip()
+
     if "_" in s:
         s = s.split("_")[0]
-    return s.strip()
 
+    s = s.strip().upper()
+
+    if "VOIP-GPON" in s:
+        return "VOIP-GPON"
+
+    return s
 
 def parse_date_only(value):
     if value is None or pd.isna(value):
@@ -356,6 +364,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["Gouvernorat"] = df[gov_src].apply(clean_governorate) if gov_src else ""
     df["Equipe"] = df["Gouvernorat"].apply(governorate_to_team)
     df["Produit"] = df[prod_src].apply(clean_product) if prod_src else ""
+    
 
     affect_dt = (
         df[affect_src].apply(parse_date_only)
@@ -630,50 +639,83 @@ def enrich_addresses_and_gps(df: pd.DataFrame) -> tuple[pd.DataFrame, int, int]:
 
 
 def build_technician_product_cards(df: pd.DataFrame) -> list[dict]:
+
     if "Technicien" not in df.columns or "Produit" not in df.columns:
         return []
 
-    tmp = df.copy()
-    tmp["Technicien"] = tmp["Technicien"].fillna("").astype(str).str.strip()
-    tmp["Produit"] = tmp["Produit"].fillna("").astype(str).str.strip()
-    tmp = tmp[(tmp["Technicien"] != "") & (tmp["Produit"] != "")]
-
-    if tmp.empty:
-        return []
-
-    if "Age Affectation" in tmp.columns:
-        tmp["Age Affectation"] = pd.to_numeric(tmp["Age Affectation"], errors="coerce").fillna(0)
-    else:
-        tmp["Age Affectation"] = 0
-
-    grouped = (
-        tmp.groupby(["Technicien", "Produit"])
-        .size()
-        .reset_index(name="Nombre")
-        .sort_values(["Technicien", "Nombre", "Produit"], ascending=[True, False, True])
+    # 🔥 DETECTION INTELLIGENTE COLONNE AGE
+    age_col = next(
+        (c for c in df.columns if "age" in c.lower()),
+        None
     )
 
+    if age_col is None:
+        print("❌ Colonne AGE introuvable")
+        return []
+
+    print("✅ AGE COLUMN =", age_col)  # DEBUG
+
+    base = df.copy()
+
+    base["Technicien"] = base["Technicien"].fillna("").astype(str).str.strip()
+    base["Produit"] = base["Produit"].fillna("").astype(str).str.strip()
+
+    # 🔥 CONVERSION ROBUSTE
+    base[age_col] = (
+        base[age_col]
+        .astype(str)
+        .str.replace(",", ".")
+        .str.strip()
+    )
+
+    base[age_col] = pd.to_numeric(base[age_col], errors="coerce").fillna(0)
+
+    # 🔥 DEBUG CRITIQUE
+    print("MAX AGE =", base[age_col].max())
+    print("NB >10 =", (base[age_col] > 10).sum())
+    print("NB =5 =", (base[age_col] == 5).sum())
+
+    # 🔥 CALCUL CORRECT
     alerts_by_tech = (
-        tmp[tmp["Age Affectation"] > 10]
+        base[base[age_col] > 10]
         .groupby("Technicien")
         .size()
         .to_dict()
     )
 
-    cards = []
-    for tech, g in grouped.groupby("Technicien"):
-        cards.append(
-            {
-                "technicien": tech,
-                "alertes_10j": int(alerts_by_tech.get(tech, 0)),
-                "details": [
-                    {"produit": row["Produit"], "nombre": int(row["Nombre"])}
-                    for _, row in g.iterrows()
-                ],
-            }
-        )
-    return cards
+    tickets_5j_by_tech = (
+        base[base[age_col] == 5]
+        .groupby("Technicien")
+        .size()
+        .to_dict()
+    )
 
+    tmp = base[(base["Technicien"] != "") & (base["Produit"] != "")]
+
+    grouped = (
+        tmp.groupby(["Technicien", "Produit"])
+        .size()
+        .reset_index(name="Nombre")
+    )
+
+    cards = []
+
+    for tech, g in grouped.groupby("Technicien"):
+
+        cards.append({
+            "technicien": tech,
+            "alerts10": int(alerts_by_tech.get(tech, 0)),
+            "tickets5j": int(tickets_5j_by_tech.get(tech, 0)),
+            "details": [
+                {
+                    "produit": row["Produit"],
+                    "nombre": int(row["Nombre"])
+                }
+                for _, row in g.iterrows()
+            ],
+        })
+
+    return sorted(cards, key=lambda x: (x["alerts10"], x["tickets5j"]), reverse=True)
 
 
 def _is_retour_fsi_series(df: pd.DataFrame) -> pd.Series:
@@ -684,6 +726,7 @@ def _is_retour_fsi_series(df: pd.DataFrame) -> pd.Series:
     return normalized.isin(["RETOUR FSI", "OUI"])
 
 def dashboard_counts(df: pd.DataFrame) -> dict:
+
     equipe = (
         df["Equipe"].fillna("").replace("", "Non renseigné").value_counts().sort_values(ascending=False)
         if "Equipe" in df.columns
@@ -708,6 +751,9 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
         else pd.Series(dtype=int)
     )
 
+    # =========================
+    # ALERTES > 10 jours
+    # =========================
     alerts_affect_10 = (
         df[df["Age Affectation"].fillna(0).astype(float) > 10]["Technicien"]
         .fillna("")
@@ -718,6 +764,9 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
         else pd.Series(dtype=int)
     )
 
+    # =========================
+    # ALERTES WF >= 20
+    # =========================
     alerts_wf_20 = (
         df[df["Age WF TT"].fillna(0).astype(float) >= 20]["Technicien"]
         .fillna("")
@@ -728,6 +777,9 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
         else pd.Series(dtype=int)
     )
 
+    # =========================
+    # FSI
+    # =========================
     fsi_by_tech = (
         df[_is_retour_fsi_series(df)]["Technicien"]
         .fillna("")
@@ -738,29 +790,87 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
         else pd.Series(dtype=int)
     )
 
-    tickets_sans_responsable = 0
+    # =========================
+    # KPI SUPPLEMENTAIRES
+    # =========================
     if "Technicien" in df.columns:
         tech_col = df["Technicien"].fillna("").astype(str).str.strip()
         tickets_sans_responsable = int((tech_col == "").sum())
+    else:
+        tickets_sans_responsable = 0
 
+    # ✅ KPI 5 jours (CORRIGÉ)
+    if "Age Affectation" in df.columns:
+        age_series = df["Age Affectation"].fillna(0).astype(float)
+
+        tickets_5j = int((df["Age Affectation"].fillna(0).astype(float) == 5).sum())
+
+        tickets_5j_by_tech = (
+            df[age_series == 5]["Technicien"]
+            .fillna("")
+            .replace("", "Non renseigné")
+            .value_counts()
+            .sort_values(ascending=False)
+        )
+    else:
+        tickets_5j = 0
+        tickets_5j_by_tech = pd.Series(dtype=int)
+
+    # =========================
+    # RETURN FINAL
+    # =========================
     return {
         "equipe": {"labels": equipe.index.tolist(), "values": equipe.values.tolist()},
         "gouvernorat": {"labels": gouvernorat.index.tolist(), "values": gouvernorat.values.tolist()},
         "technicien": {"labels": tech.index.tolist(), "values": tech.values.tolist()},
         "produit": {"labels": prod.index.tolist(), "values": prod.values.tolist()},
-        "alertes_affect_10": {"labels": alerts_affect_10.index.tolist(), "values": alerts_affect_10.values.tolist()},
-        "alertes_wf_20": {"labels": alerts_wf_20.index.tolist(), "values": alerts_wf_20.values.tolist()},
-        "fsi_par_technicien": {"labels": fsi_by_tech.index.tolist(), "values": fsi_by_tech.values.tolist()},
+
+        "alertes_affect_10": {
+            "labels": alerts_affect_10.index.tolist(),
+            "values": alerts_affect_10.values.tolist()
+        },
+
+        "alertes_wf_20": {
+            "labels": alerts_wf_20.index.tolist(),
+            "values": alerts_wf_20.values.tolist()
+        },
+
+        "fsi_par_technicien": {
+            "labels": fsi_by_tech.index.tolist(),
+            "values": fsi_by_tech.values.tolist()
+        },
+
+        # ✅ NOUVEAU GRAPHE
+        "tickets_5j": {
+            "labels": tickets_5j_by_tech.index.tolist(),
+            "values": tickets_5j_by_tech.values.tolist()
+        },
+
         "technician_product_cards": build_technician_product_cards(df),
+
+        # =========================
+        # KPI GLOBAL
+        # =========================
         "kpis": {
             "total_tickets": int(len(df)),
-            "total_alerts": int((df["Age Affectation"].fillna(0).astype(float) > 10).sum()) if "Age Affectation" in df.columns else 0,
-            "total_retour_fsi": int(_is_retour_fsi_series(df).sum()) if "Etat WF TT" in df.columns else 0,
-            "total_wf20": int((df["Age WF TT"].fillna(0).astype(float) >= 20).sum()) if "Age WF TT" in df.columns else 0,
+
+            "tickets_5j": tickets_5j,  # ✅ NOUVEAU KPI
+
+            "total_alerts": int( 
+                (df["Age Affectation"].fillna(0).astype(float) > 10).sum()
+            ) if "Age Affectation" in df.columns else 0,
+
+            "total_retour_fsi": int(
+                _is_retour_fsi_series(df).sum()
+            ) if "Etat WF TT" in df.columns else 0,
+
+            "total_wf20": int(
+                (df["Age WF TT"].fillna(0).astype(float) >= 20).sum()
+            ) if "Age WF TT" in df.columns else 0,
+
             "tickets_sans_responsable": tickets_sans_responsable,
         },
     }
-
 
 def _value_only_labels() -> DataLabelList:
     dl = DataLabelList()
@@ -1413,12 +1523,18 @@ def export_dataframe_to_excel(df: pd.DataFrame, filename: str) -> Path:
     return output_path
 
 
+def _read_last_export_dataframe():
+    global LAST_DF, LAST_EXPORT_FILE
 
+    # priorité mémoire
+    if LAST_DF is not None and not LAST_DF.empty:
+        return LAST_DF
 
-def _read_last_export_dataframe() -> pd.DataFrame:
-    if LAST_EXCEL_EXPORT is None or not LAST_EXCEL_EXPORT.exists():
-        raise ValueError("Aucun fichier traité disponible.")
-    return pd.read_excel(LAST_EXCEL_EXPORT, sheet_name="Data", dtype=str, engine="openpyxl")
+    # fallback fichier disque
+    if os.path.exists(LAST_EXPORT_FILE):
+        return pd.read_excel(LAST_EXPORT_FILE)
+
+    raise ValueError("Aucun fichier traité disponible.")
 
 
 def _coerce_numeric_series(df: pd.DataFrame, col: str) -> pd.Series:
@@ -1495,11 +1611,29 @@ def _detail_ticket_export_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         ],
     )
 
-
-@app.route("/export_kpi_details/<kind>", methods=["GET"])
+@app.route("/export_kpi_details/<kind>")
 def export_kpi_details(kind):
+
     try:
-        df = _read_last_export_dataframe()
+        global LAST_DF
+
+        # 🔥 sécuriser kind
+        if not kind:
+            return jsonify({
+                "success": False,
+                "message": "Type KPI manquant"
+            }), 400
+
+        kind = str(kind).strip().lower()
+
+        # 🔥 récupérer DF
+        if LAST_DF is None or LAST_DF.empty:
+            return jsonify({
+                "success": False,
+                "message": "Aucun fichier traité disponible."
+            }), 400
+
+        df = LAST_DF.copy()
 
         if "Age Affectation" in df.columns:
             df["Age Affectation"] = pd.to_numeric(df["Age Affectation"], errors="coerce")
@@ -1605,7 +1739,23 @@ def export_kpi_details(kind):
             )
             _, filename = _export_filtered_excel(filtered, export_df, "Sans_Resp")
             return send_file(OUTPUT_FOLDER / filename, as_attachment=True, download_name=filename)
+        if kind == "tickets5j":
+            filtered = df[_coerce_numeric_series(df, "Age Affectation") == 5].copy()
 
+            export_df = _build_export_dataframe(
+            filtered,
+            [
+                 ("Numéro ticket", ["Numéro ticket"]),
+                 ("Technicien", ["Technicien"]),
+                 ("Produit", ["Produit"]),
+                 ("Gouvernorat", ["Gouvernorat"]),
+                 ("Equipe", ["Equipe"]),
+                 ("Age Affectation", ["Age Affectation"]),
+            ],
+        )
+
+            _, filename = _export_filtered_excel(filtered, export_df, "Tickets_5J")
+            return send_file(OUTPUT_FOLDER / filename, as_attachment=True, download_name=filename)
         return jsonify({"success": False, "message": "Type d'export KPI non reconnu."}), 400
 
     except Exception as e:
@@ -1663,24 +1813,29 @@ def static_excel_icon():
 
 @app.route("/process", methods=["POST"])
 def process_files():
-    global LAST_EXCEL_EXPORT
+    global LAST_EXCEL_EXPORT, LAST_DF
 
     try:
         files = request.files.getlist("files")
+
         if not files:
             return jsonify({"success": False, "message": "Aucun fichier fourni."}), 400
 
         saved_paths = []
+
         for file in files:
             if not file:
                 continue
 
             original_name = (file.filename or "").strip()
+
             if not allowed_file(original_name):
                 continue
 
             filename = secure_filename(original_name) or f"input_{now_stamp()}.xlsx"
+
             save_path = UPLOAD_FOLDER / f"{datetime.now().strftime('%H%M%S')}_{filename}"
+
             file.save(save_path)
             saved_paths.append(save_path)
 
@@ -1688,28 +1843,39 @@ def process_files():
             return jsonify({"success": False, "message": "Aucun fichier Excel valide."}), 400
 
         df = merge_uploaded_files(saved_paths)
+
         if df.empty:
             return jsonify({"success": False, "message": "Aucune donnée exploitable trouvée."}), 400
 
+        # 🔥 IMPORTANT
+        LAST_DF = df
+
         export_name = f"BacklogMS_{now_stamp()}.xlsx"
         export_path = export_dataframe_to_excel(df, export_name)
+
         LAST_EXCEL_EXPORT = export_path
 
-        return jsonify(
-            {
-                "success": True,
-                "message": "Traitement terminé avec succès.",
-                "excel_file": export_name,
-                "download_url": f"/download/{export_name}",
-                "can_export_pdf": True,
-                "dashboard": dashboard_counts(df),
-            }
-        )
+        # ✅ dashboard calculé une seule fois
+        dashboard = dashboard_counts(df)
+
+        return jsonify({
+            "success": True,
+            "message": "Traitement terminé avec succès.",
+            "excel_file": export_name,
+            "download_url": f"/download/{export_name}",
+            "can_export_pdf": True,
+            "dashboard": dashboard,
+            "kpis": dashboard.get("kpis", {})
+        })
+
     except Exception as e:
+        import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "message": f"Erreur lors du traitement : {str(e)}"}), 500
 
-
+        return jsonify({
+            "success": False,
+            "message": f"Erreur lors du traitement : {str(e)}"
+        }), 500
 @app.route("/correct_addresses_gps", methods=["POST"])
 def correct_addresses_gps():
     global LAST_EXCEL_EXPORT
@@ -1764,19 +1930,22 @@ def export_pdf():
         mode = (request.args.get("mode") or "download").strip().lower()
 
         if mode in {"inline", "print"}:
-            return send_file(
+            response = send_file(
                 pdf_path,
                 as_attachment=False,
-                download_name=pdf_name,
                 mimetype="application/pdf",
             )
+        response.headers["Content-Disposition"] = f'inline; filename="{pdf_name}"'
 
-        return send_file(
-            pdf_path,
-            as_attachment=True,
-            download_name=pdf_name,
-            mimetype="application/pdf",
-        )
+        return response
+        response = send_file(
+        pdf_path,
+        as_attachment=True,
+        mimetype="application/pdf"
+)
+        response.headers["Content-Disposition"] = f'attachment; filename="{pdf_name}"'
+        return response
+    
     except Exception as e:
         traceback.print_exc()
         return "Erreur lors de l'exportation PDF : " + str(e) + "\n" + traceback.format_exc(), 500
@@ -1788,8 +1957,6 @@ from email.message import EmailMessage
 @app.route("/static_mail_icon")
 def static_mail_icon():
     return send_file(r"C:\xampp\htdocs\app_1\Icone MAIL.png")
-
-
 from flask import request, jsonify
 from email.message import EmailMessage
 from datetime import datetime
@@ -1803,129 +1970,114 @@ def send_mail():
         data = request.get_json()
         charts = data.get("charts", {})
 
-        # =========================
-        # KPI
-        # =========================
-        global LAST_DF
+        global LAST_DF, LAST_EXCEL_EXPORT
 
+        # ================= KPI =================
         if LAST_DF is not None:
             total = len(LAST_DF)
+            tickets_5j = len(LAST_DF[LAST_DF["Age Affectation"] == 5])
             alerts10 = len(LAST_DF[LAST_DF["Age Affectation"] > 10])
             wf20 = len(LAST_DF[LAST_DF["Age WF TT"] >= 20])
             retour_fsi = len(LAST_DF[LAST_DF["Etat WF TT"] == "Retour FSI"])
+            
         else:
-            total = alerts10 = wf20 = retour_fsi = 0
+            total = alerts10 = wf20 = retour_fsi = tickets_5j = 0
 
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+        # ================= EMAIL =================
         msg = EmailMessage()
         msg["Subject"] = f"BacklogMS - {now}"
         msg["From"] = "intervention.orange.tn@gmail.com"
-        msg["To"] = "seifeddine.dridi@orange.com"
+        msg["To"] = "intervention.b2b@orange.com"
         msg["Cc"] = "seifeddine.dridi@orange.com"
-
-        # =========================
-        # HTML (SANS HEADER)
-        # =========================
+        # ================= HTML =================
         html = f"""
 <html>
-<body style="font-family:Segoe UI, Arial; background:#f3f2f1; padding:20px;">
-
+<body style="font-family:Arial; background:#f5f5f5; padding:20px;">
 <div style="background:white; padding:20px; border-radius:10px;">
 
 <p><b>Bonjour,</b></p>
-<p>Veuillez trouver le <b>backlog actuel</b>.</p>
+<p>Veuillez trouver le backlog actuel.</p>
 
-<h3 style="margin-top:20px; color:#444;">📊 KPI Dashboard</h3>
+<h3>📊 KPI Dashboard</h3>
 
 <table style="width:100%; text-align:center; border-spacing:10px;">
 <tr>
 
-<td style="background:#f9fafb; padding:15px; border-radius:8px;">
+<td style="background:#fff; padding:15px;">
     <div style="font-size:12px;">Total</div>
-    <div style="font-size:20px; color:#f97316; font-weight:bold;">{total}</div>
+    <div style="font-size:20px; color:#f97316;">{total}</div>
 </td>
 
-<td style="background:#fff7ed; padding:15px; border-radius:8px;">
-    <div style="font-size:12px;">> 10 jours</div>
-    <div style="font-size:20px; color:#dc2626; font-weight:bold;">{alerts10}</div>
+<td style="background:#fff7ed; padding:15px;">
+    <div style="font-size:12px;">🔥 = 5 jours</div>
+    <div style="font-size:20px; color:#f97316;">{tickets_5j}</div>
 </td>
 
-<td style="background:#fef2f2; padding:15px; border-radius:8px;">
-    <div style="font-size:12px;">WF TT ≥ 20</div>
-    <div style="font-size:20px; color:#dc2626; font-weight:bold;">{wf20}</div>
+<td style="background:#fee2e2; padding:15px;">
+    <div style="font-size:12px;">⚠️ > 10 jours</div>
+    <div style="font-size:20px; color:#dc2626;">{alerts10}</div>
 </td>
 
-<td style="background:#ecfdf5; padding:15px; border-radius:8px;">
+<td style="background:#fee2e2; padding:15px;">
+    <div style="font-size:12px;">🚨 WF TT ≥ 20</div>
+    <div style="font-size:20px; color:#dc2626;">{wf20}</div>
+</td>
+
+<td style="background:#ecfdf5; padding:15px;">
     <div style="font-size:12px;">Retour FSI</div>
-    <div style="font-size:20px; color:#16a34a; font-weight:bold;">{retour_fsi}</div>
+    <div style="font-size:20px; color:#16a34a;">{retour_fsi}</div>
 </td>
 
 </tr>
 </table>
 
-<h3 style="margin-top:25px; color:#444;">📈 Graphiques</h3>
+<h3>📈 Graphiques</h3>
 """
 
-        # =========================
-        # TITRES GRAPHES
-        # =========================
-        chart_titles = {
-            "chartTech": "Tickets par Technicien",
+        # ================= GRAPHES =================
+        titles = {
+            "chartTech": "Technicien",
+            "chart5Days": "Tickets = 5 jours",
             "chartAlertsAffect10": "Tickets > 10 jours",
-            "chartGov": "Tickets par Gouvernorat",
-            "chartProd": "Tickets par Produit"
+            "chartGov": "Gouvernorat",
+            "chartProd": "Produit",
         }
 
-        # =========================
-        # GRAPHES
-        # =========================
+        cid_map = {}
+
         for i, (key, img_data) in enumerate(charts.items()):
+            if not img_data or "," not in img_data:
+                continue
+
             cid = f"chart{i}"
-            title = chart_titles.get(key, "Graphique")
+            cid_map[key] = cid
 
             html += f"""
-            <div style="margin-top:25px;">
-                <div style="font-weight:bold; margin-bottom:8px;">
-                    📊 {title}
-                </div>
-                <img src="cid:{cid}" 
-                     style="width:100%; max-width:650px; border-radius:8px;">
-            </div>
+            <p><b>{titles.get(key, key)}</b></p>
+            <img src="cid:{cid}" style="width:100%; max-width:600px;">
             """
 
-        # =========================
-        # FOOTER
-        # =========================
         html += """
 <br><br>
 <p>Cordialement</p>
 
-<div style="font-size:13px; line-height:1.6;">
 <b>DRIDI Seifeddine</b><br>
 Chef de service Intervention Multiservices<br>
-ORANGE / MEA / MENA / TUNISIA / DRS<br><br>
-
-📞 +216 30012999<br>
-📱 +216 50012999<br>
-</div>
 
 </div>
 </body>
 </html>
 """
 
-        # =========================
-        # INJECTION HTML
-        # =========================
+        # ================= HTML INJECTION =================
         msg.set_content("BacklogMS")
         msg.add_alternative(html, subtype="html")
 
-        # =========================
-        # AJOUT GRAPHES (images)
-        # =========================
-        for i, (key, img_data) in enumerate(charts.items()):
-            cid = f"chart{i}"
+        # ================= IMAGES =================
+        for key, cid in cid_map.items():
+            img_data = charts[key]
             img_bytes = base64.b64decode(img_data.split(",")[1])
 
             msg.get_body("html").add_related(
@@ -1935,11 +2087,10 @@ ORANGE / MEA / MENA / TUNISIA / DRS<br><br>
                 cid=cid
             )
 
-        # =========================
-        # PJ EXCEL
-        # =========================
-        global LAST_EXCEL_EXPORT
-        if LAST_EXCEL_EXPORT:
+        # ================= PJ EXCEL =================
+        print("Excel path:", LAST_EXCEL_EXPORT)
+
+        if LAST_EXCEL_EXPORT and os.path.exists(LAST_EXCEL_EXPORT):
             with open(LAST_EXCEL_EXPORT, "rb") as f:
                 msg.add_attachment(
                     f.read(),
@@ -1947,11 +2098,12 @@ ORANGE / MEA / MENA / TUNISIA / DRS<br><br>
                     subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     filename="Backlog.xlsx"
                 )
+            print("✅ Excel ajouté")
+        else:
+            print("❌ Excel NON trouvé")
 
-        # =========================
-        # PJ PDF (CORRIGÉ)
-        # =========================
-        pdf_path = os.path.join(os.getcwd(), "backlog_dashboard.pdf")
+        # ================= PJ PDF =================
+        pdf_path = "backlog_dashboard.pdf"
 
         if os.path.exists(pdf_path):
             with open(pdf_path, "rb") as f:
@@ -1959,23 +2111,24 @@ ORANGE / MEA / MENA / TUNISIA / DRS<br><br>
                     f.read(),
                     maintype="application",
                     subtype="pdf",
-                    filename="Rapport_Backlog.pdf"
+                    filename="Dashboard.pdf"
                 )
+            print("✅ PDF ajouté")
         else:
-            print("⚠ PDF non trouvé :", pdf_path)
+            print("❌ PDF NON trouvé")
 
-        # =========================
-        # SMTP
-        # =========================
+        # ================= SMTP =================
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.starttls()
-            smtp.login("intervention.orange.tn@gmail.com", "cveduqokjdjqrawi")
+            smtp.login("intervention.orange.tn@gmail.com", "nckkxuofzbielcdo")
             smtp.send_message(msg)
 
-        return jsonify({"message": "📧 Mail envoyé avec PDF !"})
+        return jsonify({"message": "Mail envoyé avec succès"})
 
     except Exception as e:
-        return jsonify({"message": str(e)})
+        print("ERROR MAIL:", e)
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/download/<path:filename>")
 def download_file(filename):
     full_path = OUTPUT_FOLDER / filename
@@ -1983,6 +2136,77 @@ def download_file(filename):
         return "Fichier introuvable.", 404
     return send_file(full_path, as_attachment=True)
 
+@app.route("/upload", methods=["POST"])
+def upload():
+    global LAST_DF, LAST_EXCEL_EXPORT, LAST_EXPORT_FILE
+
+    try:
+        files = request.files.getlist("files")
+
+        if not files:
+            return jsonify({"success": False, "message": "Aucun fichier"}), 400
+
+        saved_paths = []
+
+        for file in files:
+            if not file or file.filename == "":
+                continue
+
+            if not allowed_file(file.filename):
+                continue
+
+            filename = secure_filename(file.filename)
+            path = UPLOAD_FOLDER / filename
+            file.save(path)
+            saved_paths.append(path)
+
+        if not saved_paths:
+            return jsonify({"success": False, "message": "Fichiers invalides"}), 400
+
+        # 🔥 UTILISER TON PIPELINE EXISTANT
+        df = merge_uploaded_files(saved_paths)
+
+        if df.empty:
+            return jsonify({"success": False, "message": "Aucune donnée exploitable"}), 400
+
+        # 🔥 sauvegarde mémoire
+        LAST_DF = df
+
+        # 🔥 sauvegarde disque
+        export_name = f"BacklogMS_{now_stamp()}.xlsx"
+        export_path = export_dataframe_to_excel(df, export_name)
+
+        LAST_EXCEL_EXPORT = export_path
+        LAST_EXPORT_FILE = str(export_path)
+
+        print("✅ DF sauvegardé :", len(df))
+
+        # 🔥 dashboard complet
+        dashboard = dashboard_counts(df)
+
+        return jsonify({
+            "success": True,
+            "message": "Traitement terminé",
+            "rows": len(df),
+
+            # ✅ CRITIQUE POUR TON FRONT
+            "dashboard": dashboard,
+            "kpis": dashboard.get("kpis", {}),
+
+            # bonus
+            "download_url": f"/download/{export_name}"
+        })
+
+    except Exception as e:
+        print("❌ ERROR UPLOAD:", e)
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+print("DF OK:", LAST_DF is not None)
+print("Excel path:", LAST_EXCEL_EXPORT)
+print("Exists:", os.path.exists(LAST_EXCEL_EXPORT) if LAST_EXCEL_EXPORT else False)
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
