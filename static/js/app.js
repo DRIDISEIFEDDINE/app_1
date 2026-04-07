@@ -8,9 +8,6 @@ let chartGov = null;
 let chartAlertsAffect10 = null;
 let chart5Days = null;
 let progressTimer = null;
-
-const btnPrintPdf = document.getElementById("btnPrintPdf");
-
 let lastStableStatus = "";
 let lastStableStatusIsError = false;
 
@@ -273,14 +270,6 @@ function createPieChart(canvasId, labels, values) {
     });
 }
 
-function printPdfReport() {
-    window.open("/export_pdf?mode=print", "_blank");
-}
-
-if (btnPrintPdf) {
-    btnPrintPdf.addEventListener("click", printPdfReport);
-
-}
 function setTextIfExists(id, value) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -330,6 +319,15 @@ function renderTechnicianProductCards(cards) {
         <div class="tech-card-header">
             <h4>${techName}</h4>
             <div class="tech-header-actions">
+
+         <img src="/static_mail_icon" 
+         class="card-mail-icon tech-mail-icon"
+         title="Envoyer par mail"
+         onclick="event.stopPropagation(); sendMailForTech(\`${techName}\`)"
+
+    <img src="/static_excel_icon" 
+         alt="Excel" 
+         class="card-excel-icon tech-excel-icon" />
                 <div class="tech-alert-badge">> 10 j : ${totalAlerts10}</div>
                 <div class="tech-alert-badge">Toc = 5 j : ${total5j}</div>
                 <img src="/static_excel_icon" alt="Excel" class="card-excel-icon tech-excel-icon" />
@@ -337,7 +335,7 @@ function renderTechnicianProductCards(cards) {
         </div>
         <div class="tech-card-tooltip">${hoverMessage}</div>
     `;
-
+   
     card.details.forEach((item) => {
         html += `
             <div class="tech-item">
@@ -362,6 +360,7 @@ function renderTechnicianProductCards(cards) {
 }
 
 function updateDashboard(dashboard) {
+    window.dashboardData = dashboard;
     destroyIfExists(chartEquipe);
     destroyIfExists(chartTech);
     destroyIfExists(chartProd);
@@ -469,7 +468,6 @@ document.getElementById("uploadForm").addEventListener("submit", async function 
         enableButton("btnDownload", true);
         enableButton("btnCorrect", true);
         enableButton("btnPdf", true);
-        enableButton("btnPrintPdf", true);
     } catch (error) {
         failProgress("Erreur réseau ou serveur.");
         setStatus("Erreur réseau ou serveur : " + error.message, true);
@@ -510,14 +508,13 @@ document.getElementById("btnCorrect").addEventListener("click", async function (
 
         enableButton("btnDownload", true);
         enableButton("btnPdf", true);
-        enableButton("btnPrintPdf", true);
     } catch (error) {
         failProgress("Erreur réseau ou serveur.");
         setStatus("Erreur réseau ou serveur : " + error.message, true);
     }
 });
 
-enableButton("btnPrintPdf", false);
+
 
 
 function initKpiExportCards() {
@@ -647,5 +644,50 @@ async function sendMailWithCharts() {
 
     } catch (error) {
         alert("Erreur lors de l'envoi du mail");
+    }
+}
+async function sendMailForTech(techName) {
+
+    const cards = window.dashboardData?.technician_product_cards || [];
+
+    function normalizeName(name) {
+    return (name || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+        const techData = cards.find(
+        c => normalizeName(c.technicien) === normalizeName(techName)
+    );
+    console.log("CLICKED:", techName);
+    console.log("CARDS:", cards.map(c => c.technicien));
+    if (!techData) {
+        alert("Technicien introuvable");
+        return;
+    }
+
+    // 🔥 confirmation
+    if (!confirm(`Envoyer le backlog de ${techName} ?`)) return;
+
+    try {
+        const response = await fetch("/send_mail_tech", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                technicien: techName,
+                data: techData
+            })
+        });
+
+        const result = await response.json();
+
+        alert(result.message || "Mail envoyé");
+
+    } catch (err) {
+        console.error(err);
+        alert("Erreur envoi mail");
     }
 }

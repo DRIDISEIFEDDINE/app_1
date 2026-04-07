@@ -745,3 +745,13 @@ a.disabled {
     background: linear-gradient(90deg, #f97316, #ea580c);
 }
 
+.tech-mail-icon {
+    width: 20px;
+    cursor: pointer;
+    margin-right: 8px;
+    transition: transform 0.2s;
+}
+
+.tech-mail-icon:hover {
+    transform: scale(1.2);
+}

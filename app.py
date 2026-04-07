@@ -1,19 +1,29 @@
+# ================= GLOBAL STATE =================
 LAST_DF = None
 LAST_EXCEL_EXPORT = None
 LAST_EXPORT_FILE = "last_export.xlsx"
-import pandas as pd
-import numpy as np
-from flask import Flask
+
+# ================= STANDARD LIB =================
 import hashlib
 import re
 import traceback
 import warnings
 import unicodedata
+import smtplib
+from email.message import EmailMessage
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Tuple
 
+# ================= THIRD PARTY =================
+import pandas as pd
+import numpy as np
+
+# ================= FLASK =================
+from flask import Flask, request, jsonify
+
+# ================= INTERNAL =================
 _original_md5 = hashlib.md5
 
 
@@ -1923,29 +1933,34 @@ def export_pdf():
             return "Erreur : aucun fichier traité disponible pour l'export PDF.", 400
 
         df = pd.read_excel(LAST_EXCEL_EXPORT, sheet_name="Data", engine="openpyxl")
+
         pdf_name = f"BacklogMS_Dashboard_{now_stamp()}.pdf"
         pdf_path = OUTPUT_FOLDER / pdf_name
+
         create_pdf_report(df, pdf_path)
 
         mode = (request.args.get("mode") or "download").strip().lower()
 
+        # 🔥 CAS INLINE / PRINT
         if mode in {"inline", "print"}:
             response = send_file(
                 pdf_path,
                 as_attachment=False,
                 mimetype="application/pdf",
             )
-        response.headers["Content-Disposition"] = f'inline; filename="{pdf_name}"'
+            response.headers["Content-Disposition"] = f'inline; filename="{pdf_name}"'
+            return response
+
+        # 🔥 CAS DOWNLOAD (par défaut)
+        response = send_file(
+            pdf_path,
+            as_attachment=True,
+            mimetype="application/pdf"
+        )
+        response.headers["Content-Disposition"] = f'attachment; filename="{pdf_name}"'
 
         return response
-        response = send_file(
-        pdf_path,
-        as_attachment=True,
-        mimetype="application/pdf"
-)
-        response.headers["Content-Disposition"] = f'attachment; filename="{pdf_name}"'
-        return response
-    
+
     except Exception as e:
         traceback.print_exc()
         return "Erreur lors de l'exportation PDF : " + str(e) + "\n" + traceback.format_exc(), 500
@@ -1972,16 +1987,21 @@ def send_mail():
 
         global LAST_DF, LAST_EXCEL_EXPORT
 
-        # ================= KPI =================
-        if LAST_DF is not None:
-            total = len(LAST_DF)
-            tickets_5j = len(LAST_DF[LAST_DF["Age Affectation"] == 5])
-            alerts10 = len(LAST_DF[LAST_DF["Age Affectation"] > 10])
-            wf20 = len(LAST_DF[LAST_DF["Age WF TT"] >= 20])
-            retour_fsi = len(LAST_DF[LAST_DF["Etat WF TT"] == "Retour FSI"])
-            
-        else:
-            total = alerts10 = wf20 = retour_fsi = tickets_5j = 0
+        # ================= DF SECURISÉ =================
+        if LAST_DF is None or LAST_DF.empty:
+            return jsonify({"error": "Aucune donnée disponible"}), 400
+
+        df = LAST_DF.copy()
+
+        # ================= KPI CENTRALISÉ =================
+        dashboard = dashboard_counts(df)
+        kpis = dashboard.get("kpis", {})
+
+        total = kpis.get("total_tickets", 0)
+        tickets_5j = kpis.get("tickets_5j", 0)
+        alerts10 = kpis.get("total_alerts", 0)
+        wf20 = kpis.get("total_wf20", 0)
+        retour_fsi = kpis.get("total_retour_fsi", 0)
 
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
@@ -1989,79 +2009,92 @@ def send_mail():
         msg = EmailMessage()
         msg["Subject"] = f"BacklogMS - {now}"
         msg["From"] = "intervention.orange.tn@gmail.com"
-        msg["To"] = "intervention.b2b@orange.com"
-        msg["Cc"] = "seifeddine.dridi@orange.com"
+        msg["To"] = "seifeddine.dridi@orange.com"
+        msg["Cc"] = "seifeddine.dridi@orange.com, intervention.b2b@orange.com"
+
         # ================= HTML =================
         html = f"""
-<html>
-<body style="font-family:Arial; background:#f5f5f5; padding:20px;">
-<div style="background:white; padding:20px; border-radius:10px;">
+        <html>
+        <body style="font-family:Arial; background:#f5f5f5; padding:20px;">
+        <div style="background:white; padding:20px; border-radius:10px;">
 
-<p><b>Bonjour,</b></p>
-<p>Veuillez trouver le backlog actuel.</p>
+        <p><b>Bonjour,</b></p>
+        <p>Veuillez trouver en PJ le backlog actuel.</p>
 
-<h3>📊 KPI Dashboard</h3>
+        <h3 style="text-align:center;">📊 KPI Dashboard</h3>
 
-<table style="width:100%; text-align:center; border-spacing:10px;">
+         <table align="center" width="100%" style="text-align:center;">
+<tr>
+<td align="center">
+
+        <table align="center" style="border-spacing:12px;">
 <tr>
 
-<td style="background:#fff; padding:15px;">
-    <div style="font-size:12px;">Total</div>
-    <div style="font-size:20px; color:#f97316;">{total}</div>
+        <td style="background:#fff; padding:15px; width:90px;">
+        <div>Total</div>
+        <div style="font-size:20px; color:#f97316;">{total}</div>
 </td>
 
-<td style="background:#fff7ed; padding:15px;">
-    <div style="font-size:12px;">🔥 = 5 jours</div>
-    <div style="font-size:20px; color:#f97316;">{tickets_5j}</div>
+<td style="background:#fff7ed; padding:15px; width:90px;">
+<div>🔥 = 5 jours</div>
+<div style="font-size:20px; color:#f97316;">{tickets_5j}</div>
 </td>
 
-<td style="background:#fee2e2; padding:15px;">
-    <div style="font-size:12px;">⚠️ > 10 jours</div>
-    <div style="font-size:20px; color:#dc2626;">{alerts10}</div>
+<td style="background:#fee2e2; padding:15px; width:90px;">
+<div>⚠️ > 10 jours</div>
+<div style="font-size:20px; color:#dc2626;">{alerts10}</div>
 </td>
 
-<td style="background:#fee2e2; padding:15px;">
-    <div style="font-size:12px;">🚨 WF TT ≥ 20</div>
-    <div style="font-size:20px; color:#dc2626;">{wf20}</div>
+<td style="background:#fee2e2; padding:15px; width:90px;">
+<div>🚨 WF TT ≥ 20</div>
+<div style="font-size:20px; color:#dc2626;">{wf20}</div>
 </td>
 
-<td style="background:#ecfdf5; padding:15px;">
-    <div style="font-size:12px;">Retour FSI</div>
-    <div style="font-size:20px; color:#16a34a;">{retour_fsi}</div>
+<td style="background:#ecfdf5; padding:15px; width:90px;">
+<div>Retour FSI</div>
+<div style="font-size:20px; color:#16a34a;">{retour_fsi}</div>
 </td>
 
 </tr>
 </table>
 
-<h3>📈 Graphiques</h3>
+</td>
+</tr>
+</table>
 """
-
-        # ================= GRAPHES =================
-        titles = {
-            "chartTech": "Technicien",
-            "chart5Days": "Tickets = 5 jours",
-            "chartAlertsAffect10": "Tickets > 10 jours",
-            "chartGov": "Gouvernorat",
-            "chartProd": "Produit",
+        titles_map = {
+        "chartTech": "Tickets par Techniciens",
+        "chartAlertsAffect10": "Tickets qui dépassent 10 jours",
+        "chartGov": "Tickets par Gouvernorat",
+        "chartProd": "Tickets par Produit",
+        "chartEquipe": "Backlog par Equipe",
+        "chartAlertsWF20": "Alertes WF TT ≥ 20 jours",
+        "chart5Days": "Tickets = 5 jours"
         }
-
+        # ================= GRAPHIQUES =================
         cid_map = {}
 
         for i, (key, img_data) in enumerate(charts.items()):
             if not img_data or "," not in img_data:
-                continue
+               continue
 
-            cid = f"chart{i}"
+            cid = f"Graphe_{i}"
             cid_map[key] = cid
 
-            html += f"""
-            <p><b>{titles.get(key, key)}</b></p>
-            <img src="cid:{cid}" style="width:100%; max-width:600px;">
-            """
+    # 🔥 mapping titre lisible
+            title = titles_map.get(key, key)
 
+            html += f"""
+            <p style="font-weight:bold; margin-top:20px; text-align:center;">
+               {title}
+            </p>
+            <div style="text-align:center;">
+               <img src="cid:{cid}" style="width:100%; max-width:600px;">
+            </div>
+            """
         html += """
 <br><br>
-<p>Cordialement</p>
+<p>Cordialement,</p>
 
 <b>DRIDI Seifeddine</b><br>
 Chef de service Intervention Multiservices<br>
@@ -2071,7 +2104,6 @@ Chef de service Intervention Multiservices<br>
 </html>
 """
 
-        # ================= HTML INJECTION =================
         msg.set_content("BacklogMS")
         msg.add_alternative(html, subtype="html")
 
@@ -2088,9 +2120,7 @@ Chef de service Intervention Multiservices<br>
             )
 
         # ================= PJ EXCEL =================
-        print("Excel path:", LAST_EXCEL_EXPORT)
-
-        if LAST_EXCEL_EXPORT and os.path.exists(LAST_EXCEL_EXPORT):
+        if LAST_EXCEL_EXPORT and Path(LAST_EXCEL_EXPORT).exists():
             with open(LAST_EXCEL_EXPORT, "rb") as f:
                 msg.add_attachment(
                     f.read(),
@@ -2103,15 +2133,18 @@ Chef de service Intervention Multiservices<br>
             print("❌ Excel NON trouvé")
 
         # ================= PJ PDF =================
-        pdf_path = "backlog_dashboard.pdf"
+        pdf_name = f"BacklogMS_Dashboard_{now_stamp()}.pdf"
+        pdf_path = OUTPUT_FOLDER / pdf_name
 
-        if os.path.exists(pdf_path):
+        create_pdf_report(df, pdf_path)
+
+        if pdf_path.exists():
             with open(pdf_path, "rb") as f:
                 msg.add_attachment(
                     f.read(),
                     maintype="application",
                     subtype="pdf",
-                    filename="Dashboard.pdf"
+                    filename=pdf_name
                 )
             print("✅ PDF ajouté")
         else:
@@ -2207,6 +2240,114 @@ def upload():
 print("DF OK:", LAST_DF is not None)
 print("Excel path:", LAST_EXCEL_EXPORT)
 print("Exists:", os.path.exists(LAST_EXCEL_EXPORT) if LAST_EXCEL_EXPORT else False)
+
+@app.route("/send_mail_tech", methods=["POST"])
+def send_mail_tech():
+    try:
+        data = request.get_json()
+        technicien = data.get("technicien")
+        tech_data = data.get("data")
+
+        if not technicien:
+            return jsonify({"error": "Technicien manquant"}), 400
+
+        # 🔥 construire contenu simple
+        details_html = ""
+        for item in tech_data.get("details", []):
+            details_html += f"<li>{item['produit']} : {item['nombre']}</li>"
+
+        html = f"""
+        <html>
+        <body>
+        <h3>Backlog Technicien : {technicien}</h3>
+
+        <p>Alertes >10j : {tech_data.get('alerts10', 0)}</p>
+        <p>Tickets =5j : {tech_data.get('tickets5j', 0)}</p>
+
+        <ul>
+        {details_html}
+        </ul>
+
+        <br>
+        Cordialement,<br>
+        DRIDI Seifeddine
+        </body>
+        </html>
+        """
+
+        msg = EmailMessage()
+        msg["Subject"] = f"Backlog {technicien}"
+        msg["From"] = "intervention.orange.tn@gmail.com"
+        
+        TECH_EMAILS = {
+    normalize_name("Galbi Mohamed Achraf"): "seifeddine.dridi@orange.com",
+    normalize_name("Mazgou Mohamed"): "mohamed.mazgou@orange.com",
+    normalize_name("Mimouni Belgacem"): "belgacem.mimouni@orange.com",
+    normalize_name("Eddinejabou Issam"): "issam.eddinejabou@orange.com",
+    normalize_name("Ouechtati Issam"): "issam.ouechtati@orange.com",
+    normalize_name("Boubaker Wssem"): "wissem.boubaker@orange.com",
+    normalize_name("Slimene Bilel"): "bilel.slimene@orange.com",
+    normalize_name("Aoun Amine"): "amine.aoun@orange.com",
+    normalize_name("rabie Jrad"): "rabie.jrad@orange.com",
+    normalize_name("Kefifi Bessem"): "bessem.kefifi@orange.com",
+    normalize_name("Jouini Mohamed"): "mohamed.jouini@orange.com",
+    normalize_name("Khmiss Yassine"): "yassine.khmiss@orange.com",
+    normalize_name("Mejri Jihed"): "jihed.mejri@orange.com",
+    normalize_name("Ayoub Issam Eddine"): "issam.ayoub@orange.com",
+    normalize_name("mohamed yengui"): "mohamed.yangui@orange.com",
+    normalize_name("Abdessattar Hamdi"): "abdessttar.hamdi@orange.com"
+}
+
+        # 🔥 fallback (mode test)
+        DEFAULT_EMAIL = "seifeddine.dridi@orange.com"
+        
+        tech_key = normalize_name(technicien)
+
+        recipient = TECH_EMAILS.get(tech_key, DEFAULT_EMAIL)
+        # 🔥 DEBUG AVANT RETURN
+        print("RAW:", technicien)
+        print("NORMALIZED:", tech_key)
+        print("RECIPIENT:", recipient)
+        print("MATCH:", tech_key in TECH_EMAILS)
+
+        msg["To"] = recipient
+        cc_list = [
+        "seifeddine.dridi@orange.com",
+]
+        msg["Cc"] = ", ".join(cc_list)
+
+        msg.set_content("Backlog technicien")
+        msg.add_alternative(html, subtype="html")
+        print(f"📧 Mail envoyé pour {technicien} → {recipient}")
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.starttls()
+            smtp.login("intervention.orange.tn@gmail.com", "nckkxuofzbielcdo")
+            smtp.send_message(
+        msg,
+        to_addrs=[recipient] + cc_list
+    )
+        return jsonify({"message": f"Mail envoyé à {technicien}"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+    
+    
+def normalize_name(name: str) -> str:
+    if not name:
+        return ""
+    
+    # enlever accents
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    
+    # minuscule + trim
+    name = name.strip().lower()
+    
+    # supprimer espaces multiples
+    name = re.sub(r"\s+", " ", name)
+    
+    return name
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)

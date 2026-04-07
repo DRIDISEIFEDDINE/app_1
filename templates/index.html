@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
     <div class="container">
@@ -40,8 +41,7 @@
                     <button type="submit" class="btn primary">IMPORTER DATA</button>
                     <button type="button" id="btnCorrect" class="btn success" disabled>Correction Adresse et GPS</button>
                     <a id="btnDownload" class="btn secondary disabled" href="#" download>EXPORTER BACKLOG</a>
-                    <a id="btnPdf" class="btn danger disabled" href="/export_pdf">Export Dashboard PDF</a>
-                    <button type="button" id="btnPrintPdf" class="btn warning" disabled>Imprimer PDF</button>
+                    <a id="btnPdf" class="btn danger disabled" href="/export_pdf">Export Dashboard PDF</a>  
                     <a id="btnBacklogTech" class="btn info" href="/backlog-technicien">Backlog par technicien</a>
                 </div>
             </form>
