@@ -26,6 +26,16 @@ from flask import Flask, request, jsonify
 # ================= INTERNAL =================
 _original_md5 = hashlib.md5
 
+# ================= UTILS =================
+def normalize_name(name: str) -> str:
+    if not name:
+        return ""
+    
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    name = name.strip().lower()
+    name = re.sub(r"\s+", " ", name)
+    
+    return name
 
 def _safe_md5(data=b"", *args, **kwargs):
     kwargs.pop("usedforsecurity", None)
@@ -37,6 +47,8 @@ hashlib.md5 = _safe_md5
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from email.mime.image import MIMEImage
 from flask import Flask
 from flask import Flask, jsonify, render_template, request, send_file
 from geopy.extra.rate_limiter import RateLimiter
@@ -825,7 +837,19 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
     else:
         tickets_5j = 0
         tickets_5j_by_tech = pd.Series(dtype=int)
+        # =========================
+    # NOUVEAU : ETAT GLOBAL BACKLOG
+    # =========================
+    if "Age Affectation" in df.columns:
+        age_series = df["Age Affectation"].fillna(0).astype(float)
 
+        backlog_vert = int(((age_series >= 0) & (age_series <= 4)).sum())
+        backlog_orange = int(((age_series >= 5) & (age_series <= 9)).sum())
+        backlog_rouge = int((age_series >= 10).sum())
+    else:
+        backlog_vert = 0
+        backlog_orange = 0
+        backlog_rouge = 0
     # =========================
     # RETURN FINAL
     # =========================
@@ -855,7 +879,10 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
             "labels": tickets_5j_by_tech.index.tolist(),
             "values": tickets_5j_by_tech.values.tolist()
         },
-
+                "etat_backlog": {
+            "labels": ["0-4j", "5-9j", ">=10j"],
+            "values": [backlog_vert, backlog_orange, backlog_rouge]
+        },
         "technician_product_cards": build_technician_product_cards(df),
 
         # =========================
@@ -2240,7 +2267,6 @@ def upload():
 print("DF OK:", LAST_DF is not None)
 print("Excel path:", LAST_EXCEL_EXPORT)
 print("Exists:", os.path.exists(LAST_EXCEL_EXPORT) if LAST_EXCEL_EXPORT else False)
-
 @app.route("/send_mail_tech", methods=["POST"])
 def send_mail_tech():
     try:
@@ -2251,103 +2277,182 @@ def send_mail_tech():
         if not technicien:
             return jsonify({"error": "Technicien manquant"}), 400
 
-        # 🔥 construire contenu simple
-        details_html = ""
-        for item in tech_data.get("details", []):
-            details_html += f"<li>{item['produit']} : {item['nombre']}</li>"
+        # ================= NORMALIZE =================
+        def normalize_name(name: str) -> str:
+            if not name:
+                return ""
+            name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+            name = name.strip().lower()
+            name = re.sub(r"\s+", " ", name)
+            return name
 
+        # ================= MAPPING =================
+        TECH_EMAILS = {
+            normalize_name("Galbi Mohamed Achraf"): "mohamedachraf.galbi@orange.com",
+            normalize_name("Mazgou Mohamed"): "mohamed.mazgou@orange.com",
+            normalize_name("Mimouni Belgacem"): "belgacem.mimouni@orange.com",
+            normalize_name("Eddinejabou Issam"): "issam.eddinejabou@orange.com",
+            normalize_name("Ouechtati Issam"): "issam.ouechtati@orange.com",
+            normalize_name("Boubaker Wssem"): "wissem.boubaker@orange.com",
+            normalize_name("Slimene Bilel"): "bilel.slimene@orange.com",
+            normalize_name("Aoun Amine"): "amine.aoun@orange.com",
+            normalize_name("rabie Jrad"): "rabie.jrad@orange.com",
+            normalize_name("Kefifi Bessem"): "bessem.kefifi@orange.com",
+            normalize_name("Jouini Mohamed"): "mohamed.jouini@orange.com",
+            normalize_name("Khmiss Yassine"): "yassine.khmiss@orange.com",
+            normalize_name("Mejri Jihed"): "jihed.mejri@orange.com",
+            normalize_name("Ayoub Issam Eddine"): "issam.ayoub@orange.com",
+            normalize_name("mohamed yengui"): "mohamed.yangui@orange.com",
+            normalize_name("Abdessattar Hamdi"): "abdessttar.hamdi@orange.com"
+        }
+
+        DEFAULT_EMAIL = "seifeddine.dridi@orange.com"
+        tech_key = normalize_name(technicien)
+        recipient = TECH_EMAILS.get(tech_key, DEFAULT_EMAIL)
+
+        print("TECH:", technicien, "→", recipient)
+
+        # ================= EMAIL =================
+        msg = EmailMessage()
+        msg["Subject"] = f"Backlog {technicien}"
+        msg["From"] = "intervention.orange.tn@gmail.com"
+        msg["To"] = recipient
+        cc_list = ["seifeddine.dridi@orange.com"]
+        msg["Cc"] = ", ".join(cc_list)
+
+        print("RAW:", technicien)
+        print("NORMALIZED:", tech_key)
+        print("RECIPIENT:", recipient)
+              
+        alerts10 = tech_data.get("alerts10", 0)
+        tickets5j = tech_data.get("tickets5j", 0)
+        # ================= TABLE =================
+        table_rows = ""
+        df_tech = None
+
+        if LAST_DF is not None:
+            df_tech = LAST_DF[
+                LAST_DF["Technicien"].astype(str).str.strip().str.lower()
+                == technicien.strip().lower()
+            ]
+
+            for _, row in df_tech.iterrows():
+                html += f"""
+<h3>Détail des tickets</h3>
+
+<table style="border-collapse:collapse; width:100%; font-size:11px;">
+
+    <!-- HEADER -->
+    <tr style="background:#f97316; color:white; font-weight:bold;">
+        <th style="padding:6px;">Numéro ticket</th>
+        <th style="padding:6px;">Champ complémentaire 3</th>
+        <th style="padding:6px;">Produit</th>
+        <th style="padding:6px;">Nom correspondant 1</th>
+        <th style="padding:6px;">Site client correspondant 1</th>
+        <th style="padding:6px;">Age Affectation</th>
+        <th style="padding:6px;">Etat WF TT</th>
+        <th style="padding:6px;">Mobile correspondant 1</th>
+    </tr>
+
+    {table_rows}
+
+</table>
+"""
+        
+
+        # ================= HTML =================
         html = f"""
         <html>
-        <body>
-        <h3>Backlog Technicien : {technicien}</h3>
+        <body style="font-family:Arial; background:#f4f6f9; padding:20px;">
+        <div style="max-width:800px; margin:auto; background:white; padding:20px; border-radius:10px;">
 
-        <p>Alertes >10j : {tech_data.get('alerts10', 0)}</p>
-        <p>Tickets =5j : {tech_data.get('tickets5j', 0)}</p>
+        <p>Bonjour,</p>
+        <p>Ci-dessous votre backlog actuel :</p>
+
+        <div style="padding:10px; background:#fee2e2; border-radius:8px; margin-bottom:10px;">
+            ⚠️ <b>Alertes >10j :</b> <span style="color:#dc2626; font-weight:bold;">{alerts10}</span>
+        </div>
+
+        <div style="padding:10px; background:#fef3c7; border-radius:8px;">
+            🔥 <b>Tickets =5j :</b> <span style="color:#d97706; font-weight:bold;">{tickets5j}</span>
+        </div>
 
         <ul>
-        {details_html}
+        """
+
+        for item in tech_data.get("details", []):
+            html += f"<li>{item['produit']} : <b>{item['nombre']}</b></li>"
+
+        html += """
         </ul>
+
+        <div style="text-align:center;">
+            <img src="cid:chart_prod" style="max-width:300px;">
+        </div>
 
         <br>
         Cordialement,<br>
-        DRIDI Seifeddine
+        <b>DRIDI Seifeddine</b><br>
+        Chef de service Intervention Multiservices<br>
+        ORANGE/MEA/MENA/TUNISIA/DRS
+
+        </div>
         </body>
         </html>
         """
 
-        msg = EmailMessage()
-        msg["Subject"] = f"Backlog {technicien}"
-        msg["From"] = "intervention.orange.tn@gmail.com"
-        
-        TECH_EMAILS = {
-    normalize_name("Galbi Mohamed Achraf"): "seifeddine.dridi@orange.com",
-    normalize_name("Mazgou Mohamed"): "mohamed.mazgou@orange.com",
-    normalize_name("Mimouni Belgacem"): "belgacem.mimouni@orange.com",
-    normalize_name("Eddinejabou Issam"): "issam.eddinejabou@orange.com",
-    normalize_name("Ouechtati Issam"): "issam.ouechtati@orange.com",
-    normalize_name("Boubaker Wssem"): "wissem.boubaker@orange.com",
-    normalize_name("Slimene Bilel"): "bilel.slimene@orange.com",
-    normalize_name("Aoun Amine"): "amine.aoun@orange.com",
-    normalize_name("rabie Jrad"): "rabie.jrad@orange.com",
-    normalize_name("Kefifi Bessem"): "bessem.kefifi@orange.com",
-    normalize_name("Jouini Mohamed"): "mohamed.jouini@orange.com",
-    normalize_name("Khmiss Yassine"): "yassine.khmiss@orange.com",
-    normalize_name("Mejri Jihed"): "jihed.mejri@orange.com",
-    normalize_name("Ayoub Issam Eddine"): "issam.ayoub@orange.com",
-    normalize_name("mohamed yengui"): "mohamed.yangui@orange.com",
-    normalize_name("Abdessattar Hamdi"): "abdessttar.hamdi@orange.com"
-}
-
-        # 🔥 fallback (mode test)
-        DEFAULT_EMAIL = "seifeddine.dridi@orange.com"
-        
-        tech_key = normalize_name(technicien)
-
-        recipient = TECH_EMAILS.get(tech_key, DEFAULT_EMAIL)
-        # 🔥 DEBUG AVANT RETURN
-        print("RAW:", technicien)
-        print("NORMALIZED:", tech_key)
-        print("RECIPIENT:", recipient)
-        print("MATCH:", tech_key in TECH_EMAILS)
-
-        msg["To"] = recipient
-        cc_list = [
-        "seifeddine.dridi@orange.com",
-]
-        msg["Cc"] = ", ".join(cc_list)
-
         msg.set_content("Backlog technicien")
         msg.add_alternative(html, subtype="html")
-        print(f"📧 Mail envoyé pour {technicien} → {recipient}")
+
+        # ================= GRAPH =================
+        import matplotlib.pyplot as plt
+        from email.mime.image import MIMEImage
+
+        labels = [d["produit"] for d in tech_data.get("details", [])]
+        values = [d["nombre"] for d in tech_data.get("details", [])]
+
+        if labels and values:
+            buffer = BytesIO()
+            plt.figure(figsize=(4, 4))
+            plt.pie(values, labels=labels, autopct='%1.0f%%')
+            plt.savefig(buffer, format="png")
+            plt.close()
+            buffer.seek(0)
+
+            img = MIMEImage(buffer.read())
+            img.add_header("Content-ID", "<chart_prod>")
+            msg.get_payload()[1].add_related(img)
+
+        # ================= EXCEL PJ =================
+        if LAST_DF is not None:
+            df_tech = LAST_DF[
+                LAST_DF["Technicien"].astype(str).str.strip().str.lower()
+                == technicien.strip().lower()
+            ]
+
+            if not df_tech.empty:
+                excel_buffer = BytesIO()
+                df_tech.to_excel(excel_buffer, index=False)
+                excel_buffer.seek(0)
+
+                msg.add_attachment(
+                    excel_buffer.read(),
+                    maintype="application",
+                    subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    filename=f"Backlog_{technicien}.xlsx"
+                )
+
+        # ================= ENVOI =================
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.starttls()
             smtp.login("intervention.orange.tn@gmail.com", "nckkxuofzbielcdo")
-            smtp.send_message(
-        msg,
-        to_addrs=[recipient] + cc_list
-    )
+            smtp.send_message(msg)
+
         return jsonify({"message": f"Mail envoyé à {technicien}"})
 
     except Exception as e:
+        print("❌ ERREUR:", str(e))
         return jsonify({"error": str(e)}), 500
-    
-
-    
-    
-def normalize_name(name: str) -> str:
-    if not name:
-        return ""
-    
-    # enlever accents
-    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
-    
-    # minuscule + trim
-    name = name.strip().lower()
-    
-    # supprimer espaces multiples
-    name = re.sub(r"\s+", " ", name)
-    
-    return name
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)

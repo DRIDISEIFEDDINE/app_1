@@ -150,6 +150,13 @@
                 <div class="kpi-tooltip">Exporter le détail Excel des tickets sans responsable.</div>
             </div>
         </section>
+        <!-- =============================== -->
+<!-- ETAT GLOBAL DU BACKLOG -->
+<!-- =============================== -->
+<section class="card chart-card">
+    <h3>📊 Etat Global du Backlog</h3>
+    <div id="backlogBar" class="backlog-bar-container"></div>
+</section>
 
         <section class="grid">
             <div class="card chart-card">
@@ -194,3 +201,7 @@
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
+<div style="text-align:center; margin-top:20px;">
+    <b>Répartition par produit</b><br>
+    <img src="cid:chart_prod" width="280">
+</div>

@@ -421,7 +421,62 @@ function updateDashboard(dashboard) {
     "Tickets = 5 jours",
     "#f97316"
     );
+// ==========================
+// BACKLOG BAR PRO (HTML)
+// ==========================
+if (dashboard.etat_backlog) {
+
+    const container = document.getElementById("backlogBar");
+
+    if (!container) return;
+
+    const values = dashboard.etat_backlog.values;
+
+    const total = values.reduce((a, b) => a + b, 0);
+
+    const percent = values.map(v => total ? (v / total) * 100 : 0);
+
+    container.innerHTML = `
+    <div class="backlog-content">
+
+        <div class="backlog-bar">
+            <div class="segment green" style="width:${percent[0]}%">
+                ${values[0]}
+            </div>
+
+            <div class="segment orange" style="width:${percent[1]}%">
+                ${values[1]}
+            </div>
+
+            <div class="segment red" style="width:${percent[2]}%">
+                ${values[2]}
+            </div>
+        </div>
+
+        <div class="legend-backlog">
+            <div class="legend-item">
+                <div class="legend-color" style="background:#16a34a"></div>
+                <span>0-4j</span>
+            </div>
+
+            <div class="legend-item">
+                <div class="legend-color" style="background:#f97316"></div>
+                <span>5-9j</span>
+            </div>
+
+            <div class="legend-item">
+                <div class="legend-color" style="background:#dc2626"></div>
+                <span>>=10j</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="total-value">${total}</div>
+`;
+}
     updateKpis(dashboard.kpis);
+
     renderTechnicianProductCards(dashboard.technician_product_cards);
 }
 

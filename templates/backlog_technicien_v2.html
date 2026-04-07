@@ -116,7 +116,7 @@
     </div>
 
     <script>
-        window.BACKLOG_TEAMS = {{ teams|tojson }};
+        window.BACKLOG_TEAMS = { teams|tojson };
     </script>
     <script src="{{ url_for('backlog_technicien.static', filename='js/backlog_technicien_v2.js') }}"></script>
 </body>
