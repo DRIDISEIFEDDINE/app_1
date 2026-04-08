@@ -850,6 +850,33 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
         backlog_vert = 0
         backlog_orange = 0
         backlog_rouge = 0
+        # =========================
+# BACKLOG PAR EQUIPE AVEC AGE (STACKED)
+# =========================
+    if "Age Affectation" in df.columns and "Equipe" in df.columns:
+        age_series = df["Age Affectation"].fillna(0).astype(float)
+
+        df_tmp = df.copy()
+        df_tmp["age_bucket"] = pd.cut(
+        age_series,
+        bins=[-1, 4, 9, 1000],
+        labels=["0-4j", "5-9j", ">=10j"]
+    )
+
+        backlog_equipe_age = (
+        df_tmp
+        .groupby(["Equipe", "age_bucket"])
+        .size()
+        .unstack(fill_value=0)
+    )
+
+# 🔥 TRI décroissant par total
+        backlog_equipe_age["total"] = backlog_equipe_age.sum(axis=1)
+        backlog_equipe_age = backlog_equipe_age.sort_values(by="total", ascending=False)
+        backlog_equipe_age = backlog_equipe_age.drop(columns=["total"])
+    else:
+        backlog_equipe_age = pd.DataFrame()
+    
     # =========================
     # RETURN FINAL
     # =========================
@@ -882,7 +909,14 @@ def dashboard_counts(df: pd.DataFrame) -> dict:
                 "etat_backlog": {
             "labels": ["0-4j", "5-9j", ">=10j"],
             "values": [backlog_vert, backlog_orange, backlog_rouge]
+            
         },
+        "backlog_equipe_age": {
+    "labels": backlog_equipe_age.index.tolist(),
+    "vert": backlog_equipe_age.get("0-4j", []).tolist(),
+    "orange": backlog_equipe_age.get("5-9j", []).tolist(),
+    "rouge": backlog_equipe_age.get(">=10j", []).tolist()
+},
         "technician_product_cards": build_technician_product_cards(df),
 
         # =========================

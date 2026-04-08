@@ -369,14 +369,113 @@ function updateDashboard(dashboard) {
     destroyIfExists(chartGov);
     destroyIfExists(chartAlertsAffect10);
 
-    chartEquipe = createBarChart(
-        "chartEquipe",
-        dashboard.equipe.labels,
-        dashboard.equipe.values,
-        "Backlog",
-        "#d97706"
-    );
+    destroyIfExists(chartEquipe);
 
+const ctxEquipe = document.getElementById("chartEquipe");
+
+if (ctxEquipe && dashboard.backlog_equipe_age) {
+
+chartEquipe = new Chart(ctxEquipe, {
+    type: "bar",
+    data: {
+        labels: dashboard.backlog_equipe_age.labels,
+        datasets: [
+            {
+                label: "0-4j",
+                data: dashboard.backlog_equipe_age.vert,
+                backgroundColor: "#3cbe6c",
+                borderRadius: 8,
+                borderSkipped: false,
+                barPercentage: 0.6,
+                categoryPercentage: 0.6,
+            },
+            {
+                label: "5-9j",
+                data: dashboard.backlog_equipe_age.orange,
+                backgroundColor: "#f9b116",
+                borderRadius: 8,
+                borderSkipped: false,
+                barPercentage: 0.6,
+                categoryPercentage: 0.6,
+            },
+            {
+                label: ">=10j",
+                data: dashboard.backlog_equipe_age.rouge,
+                backgroundColor: "#e43535",
+                borderRadius: 8,
+                borderSkipped: false,
+                barPercentage: 0.6,
+                categoryPercentage: 0.6,
+            },
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        plugins: {
+            legend: {
+                position: "bottom",
+                labels: {
+                    boxWidth: 12,
+                    font: {
+                        size: 11
+                    }
+                }
+            },
+            tooltip: {
+                enabled: true
+            },
+
+            datalabels: {
+                color: "#ffffff",
+                anchor: "center",
+                align: "center",
+                font: {
+                    weight: "bold",
+                    size: 14
+                },
+                formatter: function(value) {
+                    return value > 0 ? value : "";
+                }
+            }
+        },
+
+        scales: {
+            x: {
+                stacked: true,
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    font: {
+                        size: 11
+                    }
+                }
+            },
+            y: {
+                stacked: true,
+                beginAtZero: true,
+                grid: {
+                    color: "rgba(0,0,0,0.05)"
+                },
+                ticks: {
+                    font: {
+                        size: 11
+                    }   
+                }
+            }
+        },
+
+        layout: {
+            padding: {
+                top: 10,
+                bottom: 5
+            }
+        }
+    }
+});
+}
     chartTech = createBarChart(
         "chartTech",
         dashboard.technicien.labels,
