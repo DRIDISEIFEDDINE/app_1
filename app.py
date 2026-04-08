@@ -27,15 +27,22 @@ from flask import Flask, request, jsonify
 _original_md5 = hashlib.md5
 
 # ================= UTILS =================
-def normalize_name(name: str) -> str:
-    if not name:
+# ================= UTILS =================
+def normalize_name(name) -> str:
+    if pd.isna(name):
         return ""
-    
-    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+
+    name = str(name)
+
+    name = unicodedata.normalize("NFKD", name)\
+        .encode("ascii", "ignore")\
+        .decode("ascii")
+
     name = name.strip().lower()
     name = re.sub(r"\s+", " ", name)
-    
+
     return name
+
 
 def _safe_md5(data=b"", *args, **kwargs):
     kwargs.pop("usedforsecurity", None)
@@ -2301,24 +2308,21 @@ def upload():
 print("DF OK:", LAST_DF is not None)
 print("Excel path:", LAST_EXCEL_EXPORT)
 print("Exists:", os.path.exists(LAST_EXCEL_EXPORT) if LAST_EXCEL_EXPORT else False)
+# ================= UTILS =================
+def safe(x):
+    return "" if pd.isna(x) else str(x)
+
+
+# ================= ROUTE =================
 @app.route("/send_mail_tech", methods=["POST"])
 def send_mail_tech():
     try:
         data = request.get_json()
-        technicien = data.get("technicien")
-        tech_data = data.get("data")
+        technicien = str(data.get("technicien", "")).strip()
+        tech_data = data.get("data", {}) 
 
         if not technicien:
             return jsonify({"error": "Technicien manquant"}), 400
-
-        # ================= NORMALIZE =================
-        def normalize_name(name: str) -> str:
-            if not name:
-                return ""
-            name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
-            name = name.strip().lower()
-            name = re.sub(r"\s+", " ", name)
-            return name
 
         # ================= MAPPING =================
         TECH_EMAILS = {
@@ -2346,53 +2350,34 @@ def send_mail_tech():
 
         print("TECH:", technicien, "→", recipient)
 
-        # ================= EMAIL =================
-        msg = EmailMessage()
-        msg["Subject"] = f"Backlog {technicien}"
-        msg["From"] = "intervention.orange.tn@gmail.com"
-        msg["To"] = recipient
-        cc_list = ["seifeddine.dridi@orange.com"]
-        msg["Cc"] = ", ".join(cc_list)
-
-        print("RAW:", technicien)
-        print("NORMALIZED:", tech_key)
-        print("RECIPIENT:", recipient)
-              
         alerts10 = tech_data.get("alerts10", 0)
         tickets5j = tech_data.get("tickets5j", 0)
+
         # ================= TABLE =================
         table_rows = ""
-        df_tech = None
 
         if LAST_DF is not None:
             df_tech = LAST_DF[
-                LAST_DF["Technicien"].astype(str).str.strip().str.lower()
-                == technicien.strip().lower()
+                LAST_DF["Technicien"].astype(str).apply(normalize_name)
+                == tech_key
             ]
 
-            for _, row in df_tech.iterrows():
-                html += f"""
-<h3>Détail des tickets</h3>
+            for i, (_, row) in enumerate(df_tech.iterrows()):
+                table_rows += f"""
+                <tr>
+                    <td>{safe(row.get('Numéro ticket'))}</td>
+                    <td>{safe(row.get('Champ complémentaire 3'))}</td>
+                    <td>{safe(row.get('Produit'))}</td>
+                    <td>{safe(row.get('Nom correspondant 1'))}</td>
+                    <td>{safe(row.get('Site client correspondant 1'))}</td>
+                    <td>{safe(row.get('Age Affectation'))}</td>
+                    <td>{safe(row.get('Etat WF TT'))}</td>
+                    <td>{safe(row.get('Mobile correspondant 1'))}</td>
+                </tr>
+                """
 
-<table style="border-collapse:collapse; width:100%; font-size:11px;">
-
-    <!-- HEADER -->
-    <tr style="background:#f97316; color:white; font-weight:bold;">
-        <th style="padding:6px;">Numéro ticket</th>
-        <th style="padding:6px;">Champ complémentaire 3</th>
-        <th style="padding:6px;">Produit</th>
-        <th style="padding:6px;">Nom correspondant 1</th>
-        <th style="padding:6px;">Site client correspondant 1</th>
-        <th style="padding:6px;">Age Affectation</th>
-        <th style="padding:6px;">Etat WF TT</th>
-        <th style="padding:6px;">Mobile correspondant 1</th>
-    </tr>
-
-    {table_rows}
-
-</table>
-"""
-        
+        if not table_rows:
+            table_rows = "<tr><td colspan='8'>Aucune donnée trouvée</td></tr>"
 
         # ================= HTML =================
         html = f"""
@@ -2403,27 +2388,37 @@ def send_mail_tech():
         <p>Bonjour,</p>
         <p>Ci-dessous votre backlog actuel :</p>
 
-        <div style="padding:10px; background:#fee2e2; border-radius:8px; margin-bottom:10px;">
-            ⚠️ <b>Alertes >10j :</b> <span style="color:#dc2626; font-weight:bold;">{alerts10}</span>
+        <div style="padding:10px; background:#fee2e2; border-radius:8px;">
+            ⚠️ <b>Alertes >10j :</b> <b style="color:#dc2626;">{alerts10}</b>
         </div>
 
         <div style="padding:10px; background:#fef3c7; border-radius:8px;">
-            🔥 <b>Tickets =5j :</b> <span style="color:#d97706; font-weight:bold;">{tickets5j}</span>
+            🔥 <b>Tickets =5j :</b> <b style="color:#d97706;">{tickets5j}</b>
         </div>
 
         <ul>
         """
 
         for item in tech_data.get("details", []):
-            html += f"<li>{item['produit']} : <b>{item['nombre']}</b></li>"
+            html += f"<li>{safe(item.get('produit'))} : <b>{safe(item.get('nombre'))}</b></li>"
 
-        html += """
+        html += f"""
         </ul>
 
-        <div style="text-align:center;">
-            <img src="cid:chart_prod" style="max-width:300px;">
-        </div>
-
+        <h3>Détail des tickets</h3>
+        <table border="1" style="border-collapse:collapse; width:100%; font-size:11px;">
+            <tr style="background:#f97316; color:white;">
+                <th>Numéro ticket</th>
+                <th>Champ complémentaire 3</th>
+                <th>Produit</th>
+                <th>Nom correspondant 1</th>
+                <th>Site client correspondant 1</th>
+                <th>Age Affectation</th>
+                <th>Etat WF TT</th>
+                <th>Mobile correspondant 1</th>
+            </tr>
+            {table_rows}
+        </table>
         <br>
         Cordialement,<br>
         <b>DRIDI Seifeddine</b><br>
@@ -2434,47 +2429,17 @@ def send_mail_tech():
         </body>
         </html>
         """
+    
+        
+        # ================= EMAIL =================
+        msg = EmailMessage()
+        msg["Subject"] = f"Backlog {technicien}"
+        msg["From"] = "intervention.orange.tn@gmail.com"
+        msg["To"] = recipient
+        msg["Cc"] = "seifeddine.dridi@orange.com"
 
         msg.set_content("Backlog technicien")
         msg.add_alternative(html, subtype="html")
-
-        # ================= GRAPH =================
-        import matplotlib.pyplot as plt
-        from email.mime.image import MIMEImage
-
-        labels = [d["produit"] for d in tech_data.get("details", [])]
-        values = [d["nombre"] for d in tech_data.get("details", [])]
-
-        if labels and values:
-            buffer = BytesIO()
-            plt.figure(figsize=(4, 4))
-            plt.pie(values, labels=labels, autopct='%1.0f%%')
-            plt.savefig(buffer, format="png")
-            plt.close()
-            buffer.seek(0)
-
-            img = MIMEImage(buffer.read())
-            img.add_header("Content-ID", "<chart_prod>")
-            msg.get_payload()[1].add_related(img)
-
-        # ================= EXCEL PJ =================
-        if LAST_DF is not None:
-            df_tech = LAST_DF[
-                LAST_DF["Technicien"].astype(str).str.strip().str.lower()
-                == technicien.strip().lower()
-            ]
-
-            if not df_tech.empty:
-                excel_buffer = BytesIO()
-                df_tech.to_excel(excel_buffer, index=False)
-                excel_buffer.seek(0)
-
-                msg.add_attachment(
-                    excel_buffer.read(),
-                    maintype="application",
-                    subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    filename=f"Backlog_{technicien}.xlsx"
-                )
 
         # ================= ENVOI =================
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
