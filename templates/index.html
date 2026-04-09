@@ -43,6 +43,7 @@
                     <a id="btnDownload" class="btn secondary disabled" href="#" download>EXPORTER BACKLOG</a>
                     <a id="btnPdf" class="btn danger disabled" href="/export_pdf">Export Dashboard PDF</a>  
                     <a id="btnBacklogTech" class="btn info" href="/backlog-technicien">Backlog par technicien</a>
+                    <a id="btnKPI" class="btn info" href="/kpi_dashboard">📊 Dashboard KPI</a>
                 </div>
             </form>
 
@@ -204,4 +205,13 @@
 <div style="text-align:center; margin-top:20px;">
     <b>Répartition par produit</b><br>
     <img src="cid:chart_prod" width="280">
+</div>
+<div id="kpiSection" style="display:none;">
+    <h2>📊 KPI Dashboard</h2>
+
+    <div id="gaugeChart" style="height:300px;"></div>
+
+    <canvas id="chartTech"></canvas>
+    <canvas id="chartProduit"></canvas>
+    <canvas id="chartEquipe"></canvas>
 </div>

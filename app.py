@@ -80,9 +80,11 @@ from reportlab.platypus import (
     Spacer,
     Table,
     TableStyle,
+
+
 )
 from werkzeug.utils import secure_filename
-
+from modules.kpi_dashboard_blueprint import kpi_bp
 from modules.backlog_technicien_blueprint import bp as backlog_technicien_bp
 
 warnings.filterwarnings(
@@ -108,6 +110,7 @@ ALLOWED_EXTENSIONS = {"xlsx", "xls", "xlsm", "xltx", "xltm"}
 
 app = Flask(__name__, template_folder=str(TEMPLATE_FOLDER), static_folder=str(STATIC_FOLDER))
 app.register_blueprint(backlog_technicien_bp)
+app.register_blueprint(kpi_bp)
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)
 app.config["OUTPUT_FOLDER"] = str(OUTPUT_FOLDER)
 

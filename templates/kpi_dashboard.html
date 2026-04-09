@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/kpi_dashboard.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <div class="topbar">
+        <div class="topbar-inner">
+
+            <div class="brand-left"> <div class="logo-box"> <img src="/static_orange_logo" class="orange-logo"> </div> </div>
+
+            <div class="brand-center">
+                <h1>KPI Dashboard</h1>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="card">
+        <div class="actions">
+            <button class="btn primary" onclick="showView('tech')">KPI Technicien</button>
+            <button class="btn success" onclick="showView('equipe')">KPI Équipe</button>
+            <button class="btn warning" onclick="showView('produit')">KPI Produit</button>
+        </div>
+    </div>
+
+    <!-- CONTENU -->
+    <div id="kpiContent" class="card hidden">
+
+        <!-- LOADER -->
+        <div id="loader" class="loader hidden"></div>
+
+        <!-- RETOUR -->
+        <button class="btn secondary" onclick="resetView()">⬅ Retour</button>
+
+        <!-- FILTRES -->
+        <div class="actions">
+
+            <input type="date" id="dateStart">
+            <input type="date" id="dateEnd">
+
+            <select id="technicien" multiple></select>
+            <select id="produit" multiple></select>
+            <select id="equipe" multiple></select>
+
+            <button class="btn primary" onclick="loadData()">Filtrer</button>
+
+        </div>
+
+        <!-- KPI SUMMARY (🔴 déplacé ici) -->
+        <div class="kpi-summary">
+            <div id="kpiTotal" class="kpi-total"></div>
+            <div id="kpiLabel" class="kpi-label"></div>
+        </div>
+
+        <!-- GAUGE -->
+        <div id="gaugeChart" class="gauge-box"></div>
+
+        <!-- CHARTS -->
+        <div class="grid">
+
+            <div class="chart-card">
+                <h3>Technicien</h3>
+                <canvas id="chartTech"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Equipe</h3>
+                <canvas id="chartEquipe"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Produit</h3>
+                <canvas id="chartProduit"></canvas>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ✅ JS EN BAS -->
+<script src="/static/js/kpi_dashboard.js"></script>
+
+</body>
+</html>

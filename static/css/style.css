@@ -855,3 +855,10 @@ a.disabled {
 .card {
     align-self: start;
 }
+.hidden {
+    display: none;
+}
+
+#gaugeChart {
+    margin-top: 20px;
+}

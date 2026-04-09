@@ -844,4 +844,28 @@ async function sendMailForTech(techName) {
         console.error(err);
         alert("Erreur envoi mail");
     }
+    document.addEventListener("DOMContentLoaded", () => {
+
+    const btn = document.getElementById("btnKPI");
+
+    if (btn) {
+        btn.addEventListener("click", () => {
+
+            const section = document.getElementById("kpiSection");
+
+            if (section) {
+                section.style.display = "block";
+            }
+
+            // 🔥 appel KPI
+            if (typeof loadData === "function") {
+                loadData();
+            } else {
+                console.error("loadData() non trouvé");
+            }
+
+        });
+    }
+
+});
 }
