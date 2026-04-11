@@ -106,8 +106,19 @@ if (currentView === "produit" && Array.isArray(data.prod)) {
 }
 
         // KPI résumé
-        document.getElementById("kpiTotal").innerText =
-            `${data.total} interventions`;
+        document.getElementById("kpiTotal").innerHTML = `
+    <span style="font-size:28px;font-weight:bold;">
+        ${data.total.toLocaleString()}
+    </span>
+    <br>
+    <span style="color:gray;font-size:14px;">
+        interventions
+    </span>
+`;
+
+document.getElementById("kpiLabel").innerHTML = `
+    Délai moyen : <b>${data.global} j</b>
+`;
 
     } catch (err) {
         console.error("JS ERROR:", err);
@@ -302,7 +313,10 @@ function drawChart(id, dataset, field) {
     const ctx = document.getElementById(id);
     if (!ctx) return;
 
-    if (ctx.chart) ctx.chart.destroy();
+    // 🔥 destroy propre
+    if (ctx.chart) {
+        ctx.chart.destroy();
+    }
 
     const labels = [...new Set(dataset.map(d => d.Jour))].sort();
 
@@ -314,18 +328,94 @@ function drawChart(id, dataset, field) {
         grouped[key][d.Jour] = d.Volume;
     });
 
-    const datasets = Object.keys(grouped).map(k => ({
+    // 🎨 datasets dynamiques
+    const datasets = Object.keys(grouped).map((k, index) => ({
         label: k,
         data: labels.map(m => grouped[k][m] || 0),
-        borderWidth: 2,
-        fill: false,
-        tension: 0.3
+
+        borderColor: getColor(index),
+        backgroundColor: getColor(index),
+
+        fill: false
     }));
 
     ctx.chart = new Chart(ctx, {
         type: "line",
-        data: { labels, datasets }
+        data: { labels, datasets },
+
+        options: commonOptions,          // ✅ config pro appliquée
+        plugins: [ChartDataLabels]       // ✅ valeurs affichées
     });
+}
+// ================= CHART CONFIG PRO =================
+const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+
+    animation: {
+        duration: 1000,
+        easing: 'easeOutQuart'
+    },
+
+    interaction: {
+        mode: 'nearest',
+        axis: 'x',
+        intersect: false
+    },
+
+    elements: {
+        line: {
+            tension: 0.4, // 🔥 courbe lissée
+            borderWidth: 2
+        },
+        point: {
+            radius: 3,
+            hoverRadius: 6
+        }
+    },
+
+    plugins: {
+        legend: {
+            display: true,
+            position: 'top'
+        },
+
+        tooltip: {
+            mode: 'index',
+            intersect: false
+        },
+
+        datalabels: {
+            color: '#000',
+            anchor: 'end',
+            align: 'top',
+            font: {
+                size: 10,
+                weight: 'bold'
+            },
+            formatter: (value) => value > 0 ? value : ''
+        }
+    },
+
+    scales: {
+        x: {
+            grid: { display: false }
+        },
+        y: {
+            beginAtZero: true,
+            grid: { color: '#eee' }
+        }
+    }
+};
+
+// 🎨 couleurs dynamiques
+function getColor(index) {
+    const colors = [
+        '#FF6384','#36A2EB','#FFCE56',
+        '#4BC0C0','#9966FF','#FF9F40',
+        '#2ecc71','#e74c3c','#34495e'
+    ];
+    return colors[index % colors.length];
 }
 function toggleFilter(id) {
     const el = document.getElementById(id);
