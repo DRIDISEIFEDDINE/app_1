@@ -189,10 +189,96 @@ def api():
 
         print("✅ KPI OK")
 
-        return Response(
-            json.dumps(result, ensure_ascii=False),
-            content_type="application/json"
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)})
+    
+
+
+# 🔥 mapping métier FIXE
+TECH_EQUIPE_MAP = {
+    "Abdessattar Hamdi": "OTU_DRS_Intervention_Nord",
+    "Aoun Amine": "OTU_DRS_Intervention_Sud",
+    "Ayoub Issam Eddine": "OTU_DRS_Intervention_Sud",
+    "Boubaker Wssem": "OTU_DRS_Intervention_Nord",
+    "Eddinejabou Issam": "OTU_DRS_Intervention_Sud",
+    "Galbi Mohamed Achraf": "OTU_DRS_Intervention_Cap_Bon",
+    "Jouini Mohamed": "OTU_DRS_Intervention_Nord",
+    "Kefifi Bessem": "OTU_DRS_Intervention_Cap_Bon",
+    "Khmiss Yassine": "OTU_DRS_Intervention_Centre",
+    "Mazgou Mohamed": "OTU_DRS_Intervention_Nord",
+    "Mejri Jihed": "OTU_DRS_Intervention_Nord",
+    "Mimouni Belgacem": "OTU_DRS_Intervention_Nord",
+    "mohamed yengui": "OTU_DRS_Intervention_Sud",
+    "Ouechtati Issam": "OTU_DRS_Intervention_Centre",
+    "rabie Jrad": "OTU_DRS_Intervention_Nord",
+    "Slimene Bilel": "OTU_DRS_Intervention_Centre"
+}
+
+
+@kpi_bp.route("/api/filters")
+def get_filters():
+
+    try:
+        df = load_raw()
+        df = process(df)
+
+        # 🔥 mapping FIXE nettoyé
+        equipes = [e.replace(" ", "") for e in set(TECH_EQUIPE_MAP.values())]
+
+        mapping = [
+            {
+                "Technicien": t,
+                "Equipe": eq.replace(" ", "")
+            }
+            for t, eq in TECH_EQUIPE_MAP.items()
+        ]
+
+        techniciens = sorted(TECH_EQUIPE_MAP.keys())
+
+        # 🔥 PRODUITS (si data existe)
+        if not df.empty:
+            produits = sorted(
+                p for p in df["Produit"].astype(str).unique()
+                if p and p != "nan"
+            )
+        else:
+            produits = []
+
+        # 🔥 RETOUR UNIQUE (IMPORTANT)
+        return jsonify({
+            "equipes": sorted(equipes),
+            "techniciens": sorted(TECH_EQUIPE_MAP.keys()),
+            "produits": produits,
+            "mapping": mapping
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)})
+    
+        # 🔥 nettoyage produits
+        produits = sorted(
+            p for p in df["Produit"].astype(str).unique()
+            if p and p != "nan"
         )
+
+        # 🔥 mapping FIXE
+        mapping = [
+            {"Technicien": tech, "Equipe": eq}
+            for tech, eq in TECH_EQUIPE_MAP.items()
+        ]
+
+        return jsonify({
+            "equipes": sorted(set(TECH_EQUIPE_MAP.values())),
+            "techniciens": sorted(TECH_EQUIPE_MAP.keys()),
+            "produits": produits,
+            "mapping": mapping
+        })
 
     except Exception as e:
         import traceback

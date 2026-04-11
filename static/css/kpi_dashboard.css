@@ -1,3 +1,4 @@
+/* ================= GLOBAL ================= */
 body {
     font-family: Arial;
     background: #f5f7fa;
@@ -8,59 +9,12 @@ h1 {
     text-align: center;
 }
 
-.charts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-}
-
-canvas {
-    background: white;
-    padding: 10px;
-    border-radius: 10px;
-}
-
-.gauge {
-    text-align: center;
-    margin-top: 30px;
-    font-size: 24px;
-}
-
-.green { color: green; }
-.orange { color: orange; }
-.red { color: red; }
-
-.kpi-header {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.btn-kpi {
-    background: #2563eb;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-.btn-kpi:hover {
-    background: #1d4ed8;
-}
+/* 🔥 cache fiable */
 .hidden {
-    display: none;
+    display: none !important;
 }
 
-#kpiContent {
-    transition: all 0.3s ease;
-}
-
-#gaugeChart {
-    background: #fff;
-    border-radius: 12px;
-    padding: 10px;
-}
+/* ================= LOADER ================= */
 .loader {
     width: 100%;
     height: 5px;
@@ -72,9 +26,11 @@ canvas {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
 }
+
+/* ================= KPI SUMMARY ================= */
 .kpi-summary {
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 #kpiTotal {
@@ -86,35 +42,149 @@ canvas {
     font-size: 14px;
     color: gray;
 }
-select[multiple] {
-    height: 100px;
-}
-.filter-box {
-    border: 1px solid #ccc;
-    background: #fff;
-    padding: 8px;
-    width: 200px;
-    height: 120px;
-    overflow-y: auto;
-    border-radius: 6px;
+
+/* ================= GAUGE ================= */
+#gaugeChart {
+    width: 100%;
+    height: 300px;
 }
 
-.filter-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 13px;
-}
+/* ================= CHART ================= */
 .grid {
-    display: block !important;
+    display: block;
+    position: relative;
+    z-index: 1;
 }
 
 .chart-card {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 100%;
+    margin-bottom: 20px;
 }
 
 canvas {
     width: 100% !important;
     height: 350px !important;
+    background: white;
+    padding: 10px;
+    border-radius: 10px;
 }
+
+/* ================= FILTERS ================= */
+
+.filters-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+/* GROUPE */
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    font-size: 13px;
+    min-width: 180px;
+}
+
+/* LABEL */
+.filter-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+/* INPUT DATE */
+.filter-group input {
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    height: 38px;
+}
+
+/* CHECKBOX BOX */
+.filter-box {
+    width: 200px;
+    height: 130px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fafafa;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+}
+
+
+
+.filter-box::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+/* ================= CHECKBOX CLEAN ================= */
+.filter-item {
+    margin-bottom: 2px;
+}
+
+/* ligne propre */
+.checkbox-line {
+    display: flex;
+    align-items: center;
+    gap: 3px; /* 🔥 espace minimal */
+    cursor: pointer;
+    font-size: 13px;
+}
+
+/* checkbox compacte */
+.checkbox-line input {
+    margin: 0;
+    transform: scale(0.9);
+}
+
+/* hover */
+.filter-item:hover {
+    background: #f3f4f6;
+    border-radius: 4px;
+}
+
+/* ================= BUTTON ================= */
+.btn-group {
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+}
+
+.btn.primary {
+    height: 38px;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 900px) {
+    .filters-container {
+        flex-direction: column;
+    }
+}
+#kpiContent {
+    background: #f5efe6;
+    padding: 20px;
+    border-radius: 12px;
+    position: relative;
+    z-index: 10;
+}
+#filtersPanel {
+    background: #f5efe6;
+    padding: 15px;
+    border-radius: 10px;
+    position: relative;
+    z-index: 20;
+}
+
+/* 🔥 bloque toute image/fond parasite */
+#kpiContent::before,
+#kpiContent::after {
+    content: none !important;
+    display: none !important;
+}
+
+

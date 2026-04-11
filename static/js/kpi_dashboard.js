@@ -1,12 +1,16 @@
 let currentView = null;
+let techByEquipe = {};
+let filtersLoaded = false;
 
 // ================= VIEW =================
 function showView(view) {
 
     currentView = view;
 
-    const content = document.getElementById("kpiContent");
-    if (content) content.classList.remove("hidden");
+    document.getElementById("kpiContent").classList.remove("hidden");
+
+    const filters = document.getElementById("filtersPanel");
+    if (filters) filters.classList.remove("hidden");
 
     hideAllCharts();
 
@@ -19,42 +23,18 @@ function showView(view) {
 
 // ================= RESET =================
 function resetView() {
+
     currentView = null;
 
-    const content = document.getElementById("kpiContent");
-    if (content) content.classList.add("hidden");
+    document.getElementById("kpiContent").classList.add("hidden");
+
+    const filters = document.getElementById("filtersPanel");
+    if (filters) filters.classList.add("hidden");
+
+    filtersLoaded = false;
 }
 
-// ================= HELPERS =================
-function hideAllCharts() {
-    ["chartTech", "chartEquipe", "chartProduit"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.parentElement) {
-            el.parentElement.style.display = "none";
-        }
-    });
-}
-
-function showChart(id) {
-    const el = document.getElementById(id);
-    if (el && el.parentElement) {
-        el.parentElement.style.display = "block";
-    }
-}
-
-// ================= MULTI SELECT =================
-function getMultiSelect(id) {
-
-    const select = document.getElementById(id);
-    if (!select) return "";
-
-    return Array.from(select.selectedOptions)
-        .map(opt => opt.value)
-        .filter(v => v !== "")
-        .join(",");
-}
-
-// ================= LOAD =================
+// ================= LOAD DATA =================
 async function loadData() {
 
     const loader = document.getElementById("loader");
@@ -63,84 +43,247 @@ async function loadData() {
         if (loader) loader.classList.remove("hidden");
 
         const params = new URLSearchParams({
-            technicien: getMultiSelect("technicien"),
-            produit: getMultiSelect("produit"),
-            equipe: getMultiSelect("equipe"),
+            technicien: getChecked("technicien"),
+            produit: getChecked("produit"),
+            equipe: getChecked("equipe"),
             date_start: document.getElementById("dateStart")?.value || "",
             date_end: document.getElementById("dateEnd")?.value || ""
         });
 
         const res = await fetch("/api/kpi?" + params.toString());
 
-        if (!res.ok) throw new Error("Erreur API");
-
         const data = await res.json();
 
         if (data.error) {
+            console.error(data.error);
             alert(data.error);
             return;
         }
 
         console.log("KPI DATA:", data);
 
-        // ================= KPI =================
-        const totalEl = document.getElementById("kpiTotal");
-        if (totalEl) {
-            totalEl.innerText = "📊 " + (data.total || 0) + " interventions";
+        // 🔥 charger filtres une seule fois
+        if (!filtersLoaded) {
+            await loadFilters();
+            filtersLoaded = true;
         }
 
-        const avg = parseFloat(data.global || 0).toFixed(2);
+        // ===== KPI =====
+        if (currentView === "tech" && Array.isArray(data.tech)) {
+    drawChart("chartTech", data.tech, "Technicien");
+}
 
-        let label = "Global";
-        if (currentView === "tech") label = "Technicien";
-        if (currentView === "equipe") label = "Equipe";
-        if (currentView === "produit") label = "Produit";
+if (currentView === "equipe" && Array.isArray(data.eq)) {
+    drawChart("chartEquipe", data.eq, "Equipe");
+}
 
-        const labelEl = document.getElementById("kpiLabel");
-        if (labelEl) {
-            labelEl.innerText = "Moyenne DMR (" + label + ")";
-        }
+if (currentView === "produit" && Array.isArray(data.prod)) {
+    drawChart("chartProduit", data.prod, "Produit");
+}
 
-        // ================= CHART =================
-        if (currentView === "tech") {
-            drawChart("chartTech", data.tech, "Technicien");
-        }
+        if (data.global !== undefined) {
+    drawGauge(Number(data.global));
+}
 
-        if (currentView === "equipe") {
-            drawChart("chartEquipe", data.eq, "Equipe");
-        }
-
-        if (currentView === "produit") {
-            drawChart("chartProduit", data.prod, "Produit");
-        }
-
-        // ================= GAUGE =================
-        drawGauge(avg);
-
-        // ================= FILTERS (UNE SEULE FOIS) =================
-        if (!window.filtersLoaded) {
-            populateFilters(data);
-            window.filtersLoaded = true;
-        }
+        // KPI résumé
+        document.getElementById("kpiTotal").innerText =
+            `${data.total} interventions`;
 
     } catch (err) {
-        console.error("❌ KPI ERROR:", err);
+        console.error("JS ERROR:", err);
         alert("Erreur chargement KPI");
-
     } finally {
         if (loader) loader.classList.add("hidden");
     }
 }
 
-// ================= CHART =================
+// ================= LOAD FILTERS =================
+async function loadFilters() {
+
+    try {
+        const res = await fetch("/api/filters");
+        const data = await res.json();
+
+        if (data.error) {
+            console.error(data.error);
+            return;
+        }
+
+        console.log("FILTER DATA:", data);
+
+        populateFilters(data);
+
+    } catch (e) {
+        console.error("Erreur filters:", e);
+    }
+}
+
+// ================= BUILD MAPPING =================
+function buildMapping(data) {
+
+    techByEquipe = {};
+
+    data.mapping.forEach(row => {
+
+        const eq = row.Equipe;
+        const tech = row.Technicien;
+
+        if (!techByEquipe[eq]) {
+            techByEquipe[eq] = new Set();
+        }
+
+        techByEquipe[eq].add(tech);
+    });
+}
+
+// ================= POPULATE FILTERS =================
+function populateFilters(data) {
+
+    buildMapping(data);
+
+    createCheckboxFilter("filterEquipe", data.equipes, "equipe");
+    createCheckboxFilter("filterProduit", data.produits, "produit");
+    createCheckboxFilter("filterTechnicien", data.techniciens, "technicien");
+
+    attachEquipeFilter();
+}
+
+// ================= FILTRE ÉQUIPE → TECH =================
+function attachEquipeFilter() {
+
+    document.querySelectorAll("input[name='equipe']").forEach(cb => {
+
+        cb.addEventListener("change", () => {
+
+            const selected = getChecked("equipe").split(",").filter(x => x);
+
+            let techs = new Set();
+
+            if (selected.length === 0) {
+                Object.values(techByEquipe).forEach(set => {
+                    set.forEach(t => techs.add(t));
+                });
+            } else {
+                selected.forEach(eq => {
+                    if (techByEquipe[eq]) {
+                        techByEquipe[eq].forEach(t => techs.add(t));
+                    }
+                });
+            }
+
+            createCheckboxFilter("filterTechnicien", [...techs], "technicien");
+        });
+
+    });
+}
+
+// ================= CHECKBOX BUILDER =================
+function createCheckboxFilter(containerId, values, name) {
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    values.forEach(v => {
+
+        if (!v) return;
+
+        const div = document.createElement("div");
+        div.className = "filter-item";
+
+        div.innerHTML = `
+            <label>
+                <input type="checkbox" name="${name}" value="${v}">
+                ${v}
+            </label>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+// ================= GET CHECKED =================
+function getChecked(name) {
+    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`))
+        .map(el => el.value)
+        .join(",");
+}
+
+// ================= GAUGE =================
+function drawGauge(value) {
+
+    const el = document.getElementById("gaugeChart");
+    if (!el) return;
+
+    // 🔥 IMPORTANT : éviter superposition
+    let chart = echarts.getInstanceByDom(el);
+
+    if (chart) {
+        chart.dispose(); // supprime ancien
+    }
+
+    chart = echarts.init(el);
+
+    chart.setOption({
+        series: [{
+            type: 'gauge',
+            min: 0,
+            max: 10,
+
+            axisLine: {
+                lineStyle: {
+                    width: 15,
+                    color: [
+                        [0.4, '#16a34a'],   // vert
+                        [0.6, '#f59e0b'],   // orange
+                        [1, '#dc2626']      // rouge
+                    ]
+                }
+            },
+
+            pointer: {
+                width: 5
+            },
+
+            detail: {
+                formatter: function (val) {
+                    return val.toFixed(2) + " j";
+                },
+                fontSize: 18,
+                offsetCenter: [0, "60%"]
+            },
+
+            data: [{ value: value || 0 }]
+        }]
+    });
+}
+
+// ================= CHART HELPERS =================
+function hideAllCharts() {
+    ["chartTech", "chartEquipe", "chartProduit"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.parentElement.style.display = "none";
+    });
+}
+
+function showChart(id) {
+    const el = document.getElementById(id);
+    if (el) el.parentElement.style.display = "block";
+}
+
 function drawChart(id, dataset, field) {
-    
+
+    if (!dataset || dataset.length === 0) {
+        console.warn("Dataset vide pour", id);
+        return;
+    }
+
     const ctx = document.getElementById(id);
     if (!ctx) return;
 
     if (ctx.chart) ctx.chart.destroy();
 
-    
     const labels = [...new Set(dataset.map(d => d.Jour))].sort();
 
     const grouped = {};
@@ -151,163 +294,25 @@ function drawChart(id, dataset, field) {
         grouped[key][d.Jour] = d.Volume;
     });
 
-    const MAX_SERIES = 8;
-
-    // 🔥 trier par volume total
-    const sortedKeys = Object.keys(grouped).sort((a, b) => {
-        const sumA = Object.values(grouped[a]).reduce((x, y) => x + y, 0);
-        const sumB = Object.values(grouped[b]).reduce((x, y) => x + y, 0);
-        return sumB - sumA;
-    });
-
-    const datasets = sortedKeys.slice(0, MAX_SERIES).map(k => ({
+    const datasets = Object.keys(grouped).map(k => ({
         label: k,
         data: labels.map(m => grouped[k][m] || 0),
         borderWidth: 2,
         fill: false,
-        tension: 0.3,
-        pointRadius: 4,
-        pointHoverRadius: 6
+        tension: 0.3
     }));
-    document.querySelector("h3").innerText =
-    "Produit - Volume des interventions";
+
     ctx.chart = new Chart(ctx, {
         type: "line",
-        data: { labels, datasets },
-
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-
-            plugins: {
-                legend: {
-                    position: "top"
-                },
-                tooltip: {
-                    enabled: true
-                }
-            },
-
-            scales: {
-                x: {
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 30
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: "Nombre d'interventions"
-                    }
-                }
-            }
-        },
-
-        // 🔥 afficher valeurs sur les points
-        plugins: [{
-            id: 'labels',
-            afterDatasetsDraw(chart) {
-
-                const { ctx } = chart;
-
-                chart.data.datasets.forEach((dataset, i) => {
-
-                    const meta = chart.getDatasetMeta(i);
-
-                    meta.data.forEach((point, index) => {
-
-                        const value = dataset.data[index];
-
-                        if (value === 0) return;
-
-                        ctx.fillStyle = "#111";          
-                        ctx.font = "bold 14px Arial";   
-                        ctx.textAlign = "center";
-
-                        ctx.fillText(value, point.x, point.y - 10);
-                    });
-                });
-            }
-        }]
+        data: { labels, datasets }
     });
 }
 
-// ================= GAUGE =================
-function drawGauge(value) {
+// ================= INIT =================
+document.addEventListener("DOMContentLoaded", () => {
 
-    const el = document.getElementById("gaugeChart");
-    if (!el) return;
+    console.log("✅ KPI Dashboard Ready");
 
-    // 🔥 FORCER DIMENSIONS
-    el.style.width = "100%";
-    el.style.height = "300px";
-
-    // 🔥 RESET PROPRE
-    if (echarts.getInstanceByDom(el)) {
-        echarts.dispose(el);
-    }
-
-    const chart = echarts.init(el);
-
-    chart.setOption({
-        series: [{
-            type: 'gauge',
-            min: 0,
-            max: 10,
-
-            axisLine: {
-                lineStyle: {
-                    width: 20,
-                    color: [
-                        [0.4, '#16a34a'],
-                        [0.6, '#f59e0b'],
-                        [1, '#dc2626']
-                    ]
-                }
-            },
-
-            pointer: {
-                width: 6
-            },
-
-            detail: {
-                formatter: '{value} j',
-                fontSize: 20,
-                offsetCenter: [0, '70%']
-            },
-
-            data: [{
-                value: parseFloat(value)
-            }]
-        }]
-    });
-
-    // 🔥 FORCE RENDER
-    setTimeout(() => {
-        chart.resize();
-    }, 300);
-}
-// ================= FILTERS =================
-function populateFilters(data) {
-
-    fill("technicien", new Set(data.tech.map(d => d.Technicien)));
-    fill("produit", new Set(data.prod.map(d => d.Produit)));
-    fill("equipe", new Set(data.eq.map(d => d.Equipe)));
-}
-
-function fill(id, values) {
-
-    const el = document.getElementById(id);
-    if (!el) return;
-
-    el.innerHTML = "<option value=''>Tous</option>";
-
-    [...values].sort().forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        el.appendChild(opt);
-    });
-}
+    // 🔥 précharger filtres
+    loadFilters();
+});

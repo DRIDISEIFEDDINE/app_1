@@ -22,7 +22,12 @@
     <div class="topbar">
         <div class="topbar-inner">
 
-            <div class="brand-left"> <div class="logo-box"> <img src="/static_orange_logo" class="orange-logo"> </div> </div>
+            <div class="brand-left">
+                <div class="logo-box">
+                    <!-- ✅ FIX LOGO -->
+                    <img src="/static_orange_logo" class="orange-logo">
+                </div>
+            </div>
 
             <div class="brand-center">
                 <h1>KPI Dashboard</h1>
@@ -49,21 +54,43 @@
         <!-- RETOUR -->
         <button class="btn secondary" onclick="resetView()">⬅ Retour</button>
 
-        <!-- FILTRES -->
-        <div class="actions">
+       <div id="filtersPanel" class="filters-container hidden">
 
-            <input type="date" id="dateStart">
-            <input type="date" id="dateEnd">
+    <!-- Dates -->
+    <div class="filter-group">
+        <label>Date début</label>
+        <input type="date" id="dateStart">
+    </div>
 
-            <select id="technicien" multiple></select>
-            <select id="produit" multiple></select>
-            <select id="equipe" multiple></select>
+    <div class="filter-group">
+        <label>Date fin</label>
+        <input type="date" id="dateEnd">
+    </div>
 
-            <button class="btn primary" onclick="loadData()">Filtrer</button>
+    <!-- 🔥 ÉQUIPE EN PREMIER -->
+    <div class="filter-group">
+        <label>Équipe</label>
+        <div id="filterEquipe" class="filter-box"></div>
+    </div>
 
-        </div>
+    <!-- 🔥 TECHNICIEN -->
+    <div class="filter-group">
+        <label>Technicien</label>
+        <div id="filterTechnicien" class="filter-box"></div>
+    </div>
 
-        <!-- KPI SUMMARY (🔴 déplacé ici) -->
+    <!-- 🔥 PRODUIT -->
+    <div class="filter-group">
+        <label>Produit</label>
+        <div id="filterProduit" class="filter-box"></div>
+    </div>
+
+    <div class="filter-group btn-group">
+        <button class="btn primary" onclick="loadData()">Filtrer</button>
+    </div>
+
+</div>
+        <!-- KPI SUMMARY -->
         <div class="kpi-summary">
             <div id="kpiTotal" class="kpi-total"></div>
             <div id="kpiLabel" class="kpi-label"></div>
@@ -96,7 +123,7 @@
 
 </div>
 
-<!-- ✅ JS EN BAS -->
+<!-- JS -->
 <script src="/static/js/kpi_dashboard.js"></script>
 
 </body>
