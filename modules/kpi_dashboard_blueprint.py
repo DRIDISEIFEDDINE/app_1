@@ -1,8 +1,7 @@
-from flask import Blueprint, jsonify, render_template, Response
+from flask import Blueprint, jsonify, render_template, request
 import pandas as pd
 import glob
 import os
-import json
 
 kpi_bp = Blueprint(
     "kpi_dashboard",
@@ -10,193 +9,8 @@ kpi_bp = Blueprint(
     template_folder="../templates"
 )
 
-# ================= TROUVER LE DERNIER FICHIER =================
-def get_latest_excel():
-    folder = r"C:\xampp\htdocs\app_1\Base de donnees\\"
-    files = glob.glob(os.path.join(folder, "Rapport-Intervention-GP-*.xlsx"))
-
-    print("📂 Fichiers trouvés:", files)
-
-    if not files:
-        return None
-
-    latest = max(files, key=os.path.getctime)
-    print("📄 Fichier utilisé:", latest)
-
-    return latest
-
-
-# ================= LECTURE EXCEL =================
-def load_raw():
-    file = get_latest_excel()
-
-    if not file:
-        return pd.DataFrame()
-
-    try:
-        df = pd.read_excel(file, sheet_name="Etat Réparé")
-
-        print("✅ Colonnes:", list(df.columns))
-        print("✅ Nb lignes:", len(df))
-
-        return df
-
-    except Exception as e:
-        print("❌ ERREUR lecture Excel:", e)
-        return pd.DataFrame()
-
-
-# ================= DETECTION COLONNE =================
-def safe_get(df, keyword):
-    for col in df.columns:
-        if keyword.lower() in str(col).lower():
-            return col
-    return None
-
-
-# ================= TRAITEMENT =================
-def process(df):
-
-    if df.empty:
-        return df
-
-    # 🔥 éviter NaN
-    df = df.fillna("")
-
-    # ===== DETECTION COLONNES =====
-    col_ticket = safe_get(df, "ticket")
-    col_date = safe_get(df, "réparation")
-    col_delai = safe_get(df, "prise en charge")
-    col_gouv = safe_get(df, "10 bis")   # ✅ FIX IMPORTANT
-    col_prod = safe_get(df, "produit")
-    col_tech = safe_get(df, "utilisateur")
-    col_eq = safe_get(df, "EDS")
-
-    print("📊 Colonnes détectées:")
-    print("ticket:", col_ticket)
-    print("date:", col_date)
-    print("delai:", col_delai)
-    print("gouv:", col_gouv)
-    print("produit:", col_prod)
-    print("tech:", col_tech)
-    print("equipe:", col_eq)
-
-    # ===== DOUBLONS =====
-    if col_ticket and col_date:
-        df = df.drop_duplicates(subset=[col_ticket, col_date])
-
-    # ===== GOUVERNORAT =====
-    def extract_gouv(x):
-        x = str(x)
-        return x.split("\\")[-1] if "\\" in x else x
-
-    df["Gouvernorat"] = df[col_gouv].apply(extract_gouv) if col_gouv else ""
-
-    # ===== PRODUIT =====
-    def extract_prod(x):
-        x = str(x).split("_")[0]
-        if "VOIP-GPON" in x:
-            return "VOIP-GPON"
-        return x
-
-    df["Produit"] = df[col_prod].apply(extract_prod) if col_prod else ""
-
-    # ===== DELAI =====
-    if col_delai:
-        df["Delai"] = pd.to_numeric(df[col_delai], errors="coerce").fillna(0) / 1440
-    else:
-        df["Delai"] = 0
-
-    # ===== DATE =====
-    if col_date:
-        df["Date"] = pd.to_datetime(df[col_date], errors="coerce")
-    else:
-        df["Date"] = pd.Timestamp.now()
-
-    df["Jour"] = df["Date"].dt.strftime("%Y-%m-%d")
-
-    # ===== COLONNES FINALES =====
-    df["Technicien"] = df[col_tech] if col_tech else "N/A"
-    df["Equipe"] = df[col_eq] if col_eq else "N/A"
-
-    return df
-
-
-# ================= PAGE =================
-@kpi_bp.route("/kpi_dashboard")
-def page():
-    return render_template("kpi_dashboard.html")
-
-
-# ================= API =================
-@kpi_bp.route("/api/kpi")
-def api():
-    try:
-        print("🚀 KPI API CALL")
-
-        df = load_raw()
-
-        if df.empty:
-            return jsonify({"error": "Aucun fichier trouvé"})
-
-        df = process(df)
-
-        if df.empty:
-            return jsonify({"error": "Données vides après traitement"})
-        # ================= FILTRES =================
-        from flask import request
-
-        tech = request.args.get("technicien")
-        prod = request.args.get("produit")
-        eq = request.args.get("equipe")
-        date_start = request.args.get("date_start")
-        date_end = request.args.get("date_end")
-
-        # 🔥 appliquer filtres
-        if tech:
-            tech_list = tech.split(",")
-            df = df[df["Technicien"].isin(tech_list)]
-
-        if prod:
-            prod_list = prod.split(",")
-            df = df[df["Produit"].isin(prod_list)]
-
-        if eq:
-            eq_list = eq.split(",")
-            df = df[df["Equipe"].isin(eq_list)]
-
-        if date_start and date_end:
-            df = df[
-                (df["Date"] >= pd.to_datetime(date_start)) &
-                (df["Date"] <= pd.to_datetime(date_end))
-        ]
-
-        # 🔥 sécurité finale
-        df["Delai"] = pd.to_numeric(df["Delai"], errors="coerce").fillna(0)
-
-        # ===== KPI =====
-        kpi_tech = df.groupby(["Jour", "Technicien"]).size().reset_index(name="Volume")
-        kpi_prod = df.groupby(["Jour", "Produit"]).size().reset_index(name="Volume")
-        kpi_eq = df.groupby(["Jour", "Equipe"]).size().reset_index(name="Volume")
-
-        result = {
-            "tech": kpi_tech.to_dict(orient="records"),
-            "prod": kpi_prod.to_dict(orient="records"),
-            "eq": kpi_eq.to_dict(orient="records"),
-            "global": round(float(df["Delai"].mean()), 2),
-            "total": int(len(df))
-        }
-
-        print("✅ KPI OK")
-
-        return jsonify(result)
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)})
-    
-
+# ================= CONFIG =================
+DATA_FOLDER = r"C:\xampp\htdocs\app_1\Base de donnees\\"
 
 # 🔥 mapping métier FIXE
 TECH_EQUIPE_MAP = {
@@ -218,64 +32,197 @@ TECH_EQUIPE_MAP = {
     "Slimene Bilel": "OTU_DRS_Intervention_Centre"
 }
 
+# ================= TROUVER LE DERNIER FICHIER =================
+def get_latest_excel():
+    files = glob.glob(os.path.join(DATA_FOLDER, "Rapport-Intervention-GP-*.xlsx"))
 
-@kpi_bp.route("/api/filters")
-def get_filters():
+    if not files:
+        print("❌ Aucun fichier trouvé")
+        return None
+
+    latest = max(files, key=os.path.getctime)
+    print("📄 Fichier utilisé:", latest)
+    return latest
+
+
+# ================= LECTURE EXCEL =================
+def load_raw():
+    file = get_latest_excel()
+
+    if not file:
+        return pd.DataFrame()
 
     try:
+        df = pd.read_excel(file, sheet_name="Etat Réparé")
+        print("✅ Nb lignes:", len(df))
+        return df
+
+    except Exception as e:
+        print("❌ ERREUR lecture Excel:", e)
+        return pd.DataFrame()
+
+
+# ================= DETECTION COLONNE =================
+def safe_get(df, keyword):
+    for col in df.columns:
+        if keyword.lower() in str(col).lower():
+            return col
+    return None
+
+
+# ================= TRAITEMENT =================
+def process(df):
+
+    if df.empty:
+        return df
+
+    df = df.fillna("")
+
+    col_ticket = safe_get(df, "ticket")
+    col_date = safe_get(df, "réparation")
+    col_delai = safe_get(df, "prise en charge")
+    col_gouv = safe_get(df, "10 bis")
+    col_prod = safe_get(df, "produit")
+    col_tech = safe_get(df, "utilisateur")
+
+    # ===== DOUBLONS =====
+    if col_ticket and col_date:
+        df = df.drop_duplicates(subset=[col_ticket, col_date])
+
+    # ===== GOUVERNORAT =====
+    if col_gouv:
+        df["Gouvernorat"] = df[col_gouv].astype(str).apply(
+            lambda x: x.split("\\")[-1] if "\\" in x else x
+        )
+    else:
+        df["Gouvernorat"] = ""
+
+    # ===== PRODUIT =====
+    if col_prod:
+        df["Produit"] = df[col_prod].astype(str).apply(
+            lambda x: "VOIP-GPON" if "VOIP-GPON" in x else x.split("_")[0]
+        )
+    else:
+        df["Produit"] = ""
+
+    # ===== DELAI =====
+    if col_delai:
+        df["Delai"] = pd.to_numeric(df[col_delai], errors="coerce").fillna(0) / 1440
+    else:
+        df["Delai"] = 0
+
+    # ===== DATE =====
+    if col_date:
+        df["Date"] = pd.to_datetime(df[col_date], errors="coerce")
+    else:
+        df["Date"] = pd.Timestamp.now()
+
+    df["Jour"] = df["Date"].dt.strftime("%Y-%m-%d")
+
+    # ===== TECH + EQUIPE (FIX IMPORTANT) =====
+    df["Technicien"] = df[col_tech] if col_tech else "N/A"
+    df["Equipe"] = df["Technicien"].map(TECH_EQUIPE_MAP).fillna("N/A")
+
+    return df
+
+
+# ================= PAGE =================
+@kpi_bp.route("/kpi_dashboard")
+def page():
+    return render_template("kpi_dashboard.html")
+
+
+# ================= API KPI =================
+@kpi_bp.route("/api/kpi")
+def api():
+    try:
+        print("🚀 KPI API CALL")
+
         df = load_raw()
+
+        if df.empty:
+            return jsonify({"error": "Aucun fichier trouvé"})
+
         df = process(df)
 
-        # 🔥 mapping FIXE nettoyé
-        equipes = [e.replace(" ", "") for e in set(TECH_EQUIPE_MAP.values())]
+        if df.empty:
+            return jsonify({"error": "Données vides après traitement"})
 
-        mapping = [
-            {
-                "Technicien": t,
-                "Equipe": eq.replace(" ", "")
-            }
-            for t, eq in TECH_EQUIPE_MAP.items()
-        ]
+        # ================= FILTRES =================
+        tech = request.args.get("technicien")
+        prod = request.args.get("produit")
+        eq = request.args.get("equipe")
+        date_start = request.args.get("date_start")
+        date_end = request.args.get("date_end")
 
-        techniciens = sorted(TECH_EQUIPE_MAP.keys())
+        if tech:
+            df = df[df["Technicien"].isin(tech.split(","))]
 
-        # 🔥 PRODUITS (si data existe)
-        if not df.empty:
-            produits = sorted(
-                p for p in df["Produit"].astype(str).unique()
-                if p and p != "nan"
-            )
-        else:
-            produits = []
+        if prod:
+            df = df[df["Produit"].isin(prod.split(","))]
 
-        # 🔥 RETOUR UNIQUE (IMPORTANT)
-        return jsonify({
-            "equipes": sorted(equipes),
-            "techniciens": sorted(TECH_EQUIPE_MAP.keys()),
-            "produits": produits,
-            "mapping": mapping
-        })
+        if eq:
+            df = df[df["Equipe"].isin(eq.split(","))]
+
+        if date_start and date_end:
+            df = df[
+                (df["Date"] >= pd.to_datetime(date_start)) &
+                (df["Date"] <= pd.to_datetime(date_end))
+            ]
+
+        # ===== DEBUG =====
+        print("📊 Après filtres:", len(df))
+
+        # ===== KPI =====
+        df["Delai"] = pd.to_numeric(df["Delai"], errors="coerce").fillna(0)
+
+        kpi_tech = df.groupby(["Jour", "Technicien"]).size().reset_index(name="Volume")
+        kpi_prod = df.groupby(["Jour", "Produit"]).size().reset_index(name="Volume")
+        kpi_eq = df.groupby(["Jour", "Equipe"]).size().reset_index(name="Volume")
+
+        result = {
+            "tech": kpi_tech.to_dict(orient="records"),
+            "prod": kpi_prod.to_dict(orient="records"),
+            "eq": kpi_eq.to_dict(orient="records"),
+            "global": round(float(df["Delai"].mean()), 2),
+            "total": int(len(df))
+        }
+
+        print("✅ KPI OK")
+
+        return jsonify(result)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)})
-    
-        # 🔥 nettoyage produits
-        produits = sorted(
-            p for p in df["Produit"].astype(str).unique()
-            if p and p != "nan"
-        )
 
-        # 🔥 mapping FIXE
+
+# ================= API FILTERS =================
+@kpi_bp.route("/api/filters")
+def get_filters():
+    try:
+        df = load_raw()
+        df = process(df)
+
+        equipes = sorted(set(TECH_EQUIPE_MAP.values()))
+        techniciens = sorted(TECH_EQUIPE_MAP.keys())
+
         mapping = [
-            {"Technicien": tech, "Equipe": eq}
-            for tech, eq in TECH_EQUIPE_MAP.items()
+            {"Technicien": t, "Equipe": eq}
+            for t, eq in TECH_EQUIPE_MAP.items()
         ]
 
+        produits = []
+        if not df.empty:
+            produits = sorted(
+                p for p in df["Produit"].astype(str).unique()
+                if p and p != "nan"
+            )
+
         return jsonify({
-            "equipes": sorted(set(TECH_EQUIPE_MAP.values())),
-            "techniciens": sorted(TECH_EQUIPE_MAP.keys()),
+            "equipes": equipes,
+            "techniciens": techniciens,
             "produits": produits,
             "mapping": mapping
         })

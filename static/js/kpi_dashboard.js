@@ -7,8 +7,10 @@ function showView(view) {
 
     currentView = view;
 
-    document.getElementById("kpiContent").classList.remove("hidden");
+    const content = document.getElementById("kpiContent");
+    if (content) content.classList.remove("hidden");
 
+    // 🔥 afficher filtres uniquement ici
     const filters = document.getElementById("filtersPanel");
     if (filters) filters.classList.remove("hidden");
 
@@ -18,7 +20,15 @@ function showView(view) {
     if (view === "equipe") showChart("chartEquipe");
     if (view === "produit") showChart("chartProduit");
 
-    loadData();
+    // 🔥 charger filtres UNE SEULE FOIS
+    if (!filtersLoaded) {
+        loadFilters().then(() => {
+            filtersLoaded = true;
+            loadData(); // charger après filtres
+        });
+    } else {
+        loadData();
+    }
 }
 
 // ================= RESET =================
@@ -26,14 +36,14 @@ function resetView() {
 
     currentView = null;
 
-    document.getElementById("kpiContent").classList.add("hidden");
+    const content = document.getElementById("kpiContent");
+    if (content) content.classList.add("hidden");
 
     const filters = document.getElementById("filtersPanel");
     if (filters) filters.classList.add("hidden");
 
     filtersLoaded = false;
 }
-
 // ================= LOAD DATA =================
 async function loadData() {
 
@@ -42,14 +52,24 @@ async function loadData() {
     try {
         if (loader) loader.classList.remove("hidden");
 
-        const params = new URLSearchParams({
-            technicien: getChecked("technicien"),
-            produit: getChecked("produit"),
-            equipe: getChecked("equipe"),
-            date_start: document.getElementById("dateStart")?.value || "",
-            date_end: document.getElementById("dateEnd")?.value || ""
-        });
+       const params = new URLSearchParams();
 
+// 🔥 MULTI VALUES
+getChecked("technicien").split(",").forEach(v => {
+    if (v) params.append("technicien", v);
+});
+
+getChecked("produit").split(",").forEach(v => {
+    if (v) params.append("produit", v);
+});
+
+getChecked("equipe").split(",").forEach(v => {
+    if (v) params.append("equipe", v);
+});
+
+// 🔥 dates
+params.append("date_start", document.getElementById("dateStart")?.value || "");
+params.append("date_end", document.getElementById("dateEnd")?.value || "");
         const res = await fetch("/api/kpi?" + params.toString());
 
         const data = await res.json();
@@ -307,12 +327,31 @@ function drawChart(id, dataset, field) {
         data: { labels, datasets }
     });
 }
+function toggleFilter(id) {
+    const el = document.getElementById(id);
+    const label = el.previousElementSibling;
 
+    if (el.classList.contains("hidden")) {
+        el.classList.remove("hidden");
+        label.innerHTML = label.innerHTML.replace("▶", "▼");
+    } else {
+        el.classList.add("hidden");
+        label.innerHTML = label.innerHTML.replace("▼", "▶");
+    }
+}
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {
 
-    console.log("✅ KPI Dashboard Ready");
+    console.log("✅ INIT KPI Dashboard");
 
-    // 🔥 précharger filtres
+    // 🔥 cacher au démarrage
+    const filters = document.getElementById("filtersPanel");
+    if (filters) filters.classList.add("hidden");
+
+    const content = document.getElementById("kpiContent");
+    if (content) content.classList.add("hidden");
+
+    // 🔥 charger filtres en arrière-plan
     loadFilters();
+
 });
