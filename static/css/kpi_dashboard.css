@@ -220,3 +220,74 @@ canvas {
 .filter-title:hover {
     background: #ddd;
 }
+#multiGaugeContainer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 25px;
+    margin-top: 20px;
+
+    background: #f9fafb;
+    padding: 20px;
+    border-radius: 12px;
+
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.gauge-card {
+    background: linear-gradient(145deg, #ffffff, #f3f4f6);
+    border-radius: 16px;
+    padding: 18px;
+    width: 260px;
+    text-align: center;
+
+    box-shadow: 
+        0 4px 12px rgba(0,0,0,0.08),
+        0 1px 3px rgba(0,0,0,0.05);
+
+    transition: all 0.25s ease;
+}
+
+.gauge-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 
+        0 8px 20px rgba(0,0,0,0.12),
+        0 2px 6px rgba(0,0,0,0.08);
+}
+
+.gauge-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #374151;
+
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+
+    border-bottom: 1px solid #eee;
+}
+.global-card .gauge-title {
+    font-size: 16px;
+    color: #111827;
+}
+.gauge-box {
+    width: 100%;
+    height: 220px;
+}
+
+@media (max-width: 768px) {
+    .gauge-card {
+        width: 100%;
+        max-width: 320px;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.global-card {
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
+}

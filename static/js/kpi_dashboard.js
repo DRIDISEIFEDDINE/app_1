@@ -102,7 +102,28 @@ if (currentView === "produit" && Array.isArray(data.prod)) {
 }
 
         if (data.global !== undefined) {
+    const selectedEquipes = getChecked("equipe").split(",").filter(x => x);
+
+const multiContainer = document.getElementById("multiGaugeContainer");
+const mainGauge = document.getElementById("gaugeChart");
+
+if (selectedEquipes.length > 1 && Array.isArray(data.eq)) {
+
+    // 🔥 cacher gauge unique
+    if (mainGauge) mainGauge.style.display = "none";
+
+    drawMultiGauges(data.eq);
+
+} else {
+
+    // 🔥 IMPORTANT : reset multi-gauge ici
+    if (multiContainer) multiContainer.innerHTML = "";
+
+    // 🔥 afficher gauge unique
+    if (mainGauge) mainGauge.style.display = "block";
+
     drawGauge(Number(data.global));
+}
 }
 
         // KPI résumé
@@ -187,7 +208,7 @@ function attachEquipeFilter() {
         cb.addEventListener("change", () => {
 
             const selected = getChecked("equipe").split(",").filter(x => x);
-
+            console.log("Equipes sélectionnées:", selectedEquipes);
             let techs = new Set();
 
             if (selected.length === 0) {
@@ -289,7 +310,41 @@ function drawGauge(value) {
         }]
     });
 }
+function createGauge(el, value) {
 
+    let chart = echarts.getInstanceByDom(el);
+    if (chart) chart.dispose();
+
+    chart = echarts.init(el);
+
+    chart.setOption({
+        series: [{
+            type: 'gauge',
+            min: 0,
+            max: 10,
+
+            axisLine: {
+                lineStyle: {
+                    width: 15,
+                    color: [
+                        [0.4, '#16a34a'],
+                        [0.6, '#f59e0b'],
+                        [1, '#dc2626']
+                    ]
+                }
+            },
+
+            pointer: { width: 5 },
+
+            detail: {
+                formatter: val => val.toFixed(2) + " j",
+                fontSize: 16
+            },
+
+            data: [{ value: value || 0 }]
+        }]
+    });
+}
 // ================= CHART HELPERS =================
 function hideAllCharts() {
     ["chartTech", "chartEquipe", "chartProduit"].forEach(id => {
@@ -390,7 +445,7 @@ const commonOptions = {
             anchor: 'end',
             align: 'top',
             font: {
-                size: 10,
+                size: 14,
                 weight: 'bold'
             },
             formatter: (value) => value > 0 ? value : ''
@@ -428,6 +483,99 @@ function toggleFilter(id) {
         el.classList.add("hidden");
         label.innerHTML = label.innerHTML.replace("▼", "▶");
     }
+}
+function drawMultiGauges(dataset) {
+
+    const container = document.getElementById("multiGaugeContainer");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const grouped = {};
+
+    // 🔥 GROUPING
+    dataset.forEach(d => {
+        const eq = d.Equipe || "N/A";
+        if (!grouped[eq]) grouped[eq] = [];
+        grouped[eq].push(d);
+    });
+
+    // 🔥 TRI (bonus pro : meilleure équipe en premier)
+    const sortedEquipes = Object.keys(grouped).sort((a, b) => {
+        const avgA = grouped[a].reduce((s, d) => s + (d.Delai || 0), 0) / grouped[a].length;
+        const avgB = grouped[b].reduce((s, d) => s + (d.Delai || 0), 0) / grouped[b].length;
+        return avgA - avgB;
+    });
+
+    // 🔥 GAUGES PAR ÉQUIPE
+    sortedEquipes.forEach(eq => {
+
+        const dataEq = grouped[eq];
+
+        const avg = dataEq.length
+            ? dataEq.reduce((sum, d) => sum + (d.Delai || 0), 0) / dataEq.length
+            : 0;
+
+        const total = dataEq.reduce((sum, d) => sum + (d.Volume || 0), 0);
+
+        const card = document.createElement("div");
+        card.className = "gauge-card";
+
+        const title = document.createElement("div");
+        title.className = "gauge-title";
+
+        // 🎨 couleur dynamique
+        if (avg > 6) title.style.color = "#dc2626";
+        else if (avg > 4) title.style.color = "#f59e0b";
+        else title.style.color = "#16a34a";
+
+        // 🔥 contenu titre
+        title.innerHTML = `
+            ${eq}<br>
+            <span style="font-size:12px;color:gray;">
+                ${total} interventions • ${avg.toFixed(1)} j
+            </span>
+        `;
+
+        const gaugeDiv = document.createElement("div");
+        gaugeDiv.className = "gauge-box";
+
+        card.appendChild(title);
+        card.appendChild(gaugeDiv);
+        container.appendChild(card);
+
+        createGauge(gaugeDiv, avg);
+    });
+
+    // 🔥 GLOBAL
+    const globalCard = document.createElement("div");
+    globalCard.className = "gauge-card global-card";
+
+    const titleGlobal = document.createElement("div");
+    titleGlobal.className = "gauge-title";
+
+    const globalAvg = dataset.length
+        ? dataset.reduce((sum, d) => sum + (d.Delai || 0), 0) / dataset.length
+        : 0;
+
+    const globalTotal = dataset.reduce((sum, d) => sum + (d.Volume || 0), 0);
+
+    titleGlobal.innerHTML = `
+        GLOBAL<br>
+        <span style="font-size:13px;color:#374151;">
+            ${globalTotal} interventions • ${globalAvg.toFixed(1)} j
+        </span>
+    `;
+
+    const gaugeGlobal = document.createElement("div");
+    gaugeGlobal.className = "gauge-box";
+    gaugeGlobal.style.height = "250px";
+
+    globalCard.appendChild(titleGlobal);
+    globalCard.appendChild(gaugeGlobal);
+    container.appendChild(globalCard);
+
+    createGauge(gaugeGlobal, globalAvg);
 }
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {

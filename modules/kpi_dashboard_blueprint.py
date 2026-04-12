@@ -151,18 +151,22 @@ def api():
         # ================= FILTRES =================
         tech = request.args.get("technicien")
         prod = request.args.get("produit")
-        eq = request.args.get("equipe")
+        eq_list = request.args.getlist("equipe")
         date_start = request.args.get("date_start")
         date_end = request.args.get("date_end")
 
-        if tech:
-            df = df[df["Technicien"].isin(tech.split(","))]
+        tech_list = request.args.getlist("technicien")
+        prod_list = request.args.getlist("produit")
+        eq_list = request.args.getlist("equipe")
 
-        if prod:
-            df = df[df["Produit"].isin(prod.split(","))]
+        if tech_list:
+            df = df[df["Technicien"].isin(tech_list)]
 
-        if eq:
-            df = df[df["Equipe"].isin(eq.split(","))]
+        if prod_list:
+            df = df[df["Produit"].isin(prod_list)]
+
+        if eq_list:
+            df = df[df["Equipe"].isin(eq_list)]
 
         if date_start and date_end:
             df = df[
@@ -176,9 +180,20 @@ def api():
         # ===== KPI =====
         df["Delai"] = pd.to_numeric(df["Delai"], errors="coerce").fillna(0)
 
-        kpi_tech = df.groupby(["Jour", "Technicien"]).size().reset_index(name="Volume")
-        kpi_prod = df.groupby(["Jour", "Produit"]).size().reset_index(name="Volume")
-        kpi_eq = df.groupby(["Jour", "Equipe"]).size().reset_index(name="Volume")
+        kpi_tech = df.groupby(["Jour", "Technicien"]).agg(
+        Volume=("Technicien", "size"),
+        Delai=("Delai", "mean")
+        ).reset_index()
+
+        kpi_prod = df.groupby(["Jour", "Produit"]).agg(
+        Volume=("Produit", "size"),
+        Delai=("Delai", "mean")
+        ).reset_index()
+        
+        kpi_eq = df.groupby(["Jour", "Equipe"]).agg(
+        Volume=("Equipe", "size"),
+        Delai=("Delai", "mean")
+        ).reset_index()
 
         result = {
             "tech": kpi_tech.to_dict(orient="records"),
