@@ -149,31 +149,55 @@ def api():
             return jsonify({"error": "Données vides après traitement"})
 
         # ================= FILTRES =================
-        tech = request.args.get("technicien")
-        prod = request.args.get("produit")
-        eq_list = request.args.getlist("equipe")
-        date_start = request.args.get("date_start")
-        date_end = request.args.get("date_end")
-
+        
         tech_list = request.args.getlist("technicien")
         prod_list = request.args.getlist("produit")
         eq_list = request.args.getlist("equipe")
 
+        date_start = request.args.get("date_start")
+        date_end = request.args.get("date_end")
+
+# 🔥 initialisation (évite crash)
+        eq_from_tech = []
+        tech_from_eq = []
+
+# ================= CAS 1 : TECH =================
         if tech_list:
+
             df = df[df["Technicien"].isin(tech_list)]
 
+            eq_from_tech = [
+            TECH_EQUIPE_MAP.get(t)
+            for t in tech_list
+            if t in TECH_EQUIPE_MAP
+        ]
+
+        if eq_from_tech:
+            df = df[df["Equipe"].isin(eq_from_tech)]
+
+# ================= CAS 2 : EQUIPE =================
+        elif eq_list:
+
+            df = df[df["Equipe"].isin(eq_list)]
+
+            tech_from_eq = [
+                t for t, eq in TECH_EQUIPE_MAP.items()
+                if eq in eq_list
+            ]
+
+        if tech_from_eq:
+            df = df[df["Technicien"].isin(tech_from_eq)]
+
+# ================= PRODUIT =================
         if prod_list:
             df = df[df["Produit"].isin(prod_list)]
 
-        if eq_list:
-            df = df[df["Equipe"].isin(eq_list)]
-
+# ================= DATES =================
         if date_start and date_end:
             df = df[
-                (df["Date"] >= pd.to_datetime(date_start)) &
-                (df["Date"] <= pd.to_datetime(date_end))
-            ]
-
+            (df["Date"] >= pd.to_datetime(date_start)) &
+            (df["Date"] <= pd.to_datetime(date_end))
+        ]
         # ===== DEBUG =====
         print("📊 Après filtres:", len(df))
 

@@ -19,6 +19,7 @@ function showView(view) {
     if (view === "tech") showChart("chartTech");
     if (view === "equipe") showChart("chartEquipe");
     if (view === "produit") showChart("chartProduit");
+    if (view === "tech_perf") {document.getElementById("gaugeChart").style.display = "none";}
 
     // 🔥 charger filtres UNE SEULE FOIS
     if (!filtersLoaded) {
@@ -52,26 +53,26 @@ async function loadData() {
     try {
         if (loader) loader.classList.remove("hidden");
 
-       const params = new URLSearchParams();
+        const params = new URLSearchParams();
 
-// 🔥 MULTI VALUES
-getChecked("technicien").split(",").forEach(v => {
-    if (v) params.append("technicien", v);
-});
+        // 🔥 MULTI VALUES
+        getChecked("technicien").split(",").forEach(v => {
+            if (v) params.append("technicien", v);
+        });
 
-getChecked("produit").split(",").forEach(v => {
-    if (v) params.append("produit", v);
-});
+        getChecked("produit").split(",").forEach(v => {
+            if (v) params.append("produit", v);
+        });
 
-getChecked("equipe").split(",").forEach(v => {
-    if (v) params.append("equipe", v);
-});
+        getChecked("equipe").split(",").forEach(v => {
+            if (v) params.append("equipe", v);
+        });
 
-// 🔥 dates
-params.append("date_start", document.getElementById("dateStart")?.value || "");
-params.append("date_end", document.getElementById("dateEnd")?.value || "");
+        // 🔥 dates
+        params.append("date_start", document.getElementById("dateStart")?.value || "");
+        params.append("date_end", document.getElementById("dateEnd")?.value || "");
+
         const res = await fetch("/api/kpi?" + params.toString());
-
         const data = await res.json();
 
         if (data.error) {
@@ -88,58 +89,106 @@ params.append("date_end", document.getElementById("dateEnd")?.value || "");
             filtersLoaded = true;
         }
 
-        // ===== KPI =====
-        if (currentView === "tech" && Array.isArray(data.tech)) {
-    drawChart("chartTech", data.tech, "Technicien");
-}
+        // ================= PERFORMANCE TECH =================
+        if (currentView === "tech_perf" && Array.isArray(data.tech)) {
 
-if (currentView === "equipe" && Array.isArray(data.eq)) {
-    drawChart("chartEquipe", data.eq, "Equipe");
-}
+            const selectedTechs = getChecked("technicien").split(",").filter(x => x);
 
-if (currentView === "produit" && Array.isArray(data.prod)) {
-    drawChart("chartProduit", data.prod, "Produit");
-}
+            const container = document.getElementById("multiGaugeContainer");
+            const chartEl = document.getElementById("chartTech");
+            const mainGauge = document.getElementById("gaugeChart");
 
-        if (data.global !== undefined) {
-    const selectedEquipes = getChecked("equipe").split(",").filter(x => x);
+            if (chartEl) chartEl.style.display = "none";
+            if (mainGauge) mainGauge.style.display = "none";
 
-const multiContainer = document.getElementById("multiGaugeContainer");
-const mainGauge = document.getElementById("gaugeChart");
+            if (container) container.innerHTML = "";
 
-if (selectedEquipes.length > 1 && Array.isArray(data.eq)) {
+            drawMultiGaugesTechOnly(data.tech, selectedTechs);
+        }
 
-    // 🔥 cacher gauge unique
-    if (mainGauge) mainGauge.style.display = "none";
+        // ================= KPI TECH =================
+else if (currentView === "tech" && Array.isArray(data.tech)) {
 
-    drawMultiGauges(data.eq);
+    const chartEl = document.getElementById("chartTech");
+    const container = document.getElementById("multiGaugeContainer");
+    const mainGauge = document.getElementById("gaugeChart");
 
-} else {
-
-    // 🔥 IMPORTANT : reset multi-gauge ici
-    if (multiContainer) multiContainer.innerHTML = "";
-
-    // 🔥 afficher gauge unique
+    // 🔥 reset
+    if (container) container.innerHTML = "";
+    if (chartEl) chartEl.style.display = "block";
     if (mainGauge) mainGauge.style.display = "block";
 
+    // 🔥 afficher histogramme (UNE SEULE FOIS)
+    toggleHistogram(true);
+    setHistogramTitle("Technicien - Volume des tickets");
+    
+    drawChart("chartTech", data.tech, "Technicien");
+    drawTechHistogram(data.tech);
     drawGauge(Number(data.global));
 }
+
+// ================= KPI EQUIPE =================
+else if (currentView === "equipe" && Array.isArray(data.eq)) {
+
+    // 🔥 afficher histogramme
+    toggleHistogram(true);
+
+    // 🔥 changer le titre ICI
+    setHistogramTitle("Équipe - Volume des tickets");
+    
+
+    const selectedEquipes = getChecked("equipe").split(",").filter(x => x);
+
+    // 🔥 histogramme équipe
+    drawEquipeHistogram(data.eq);
+
+    if (selectedEquipes.length > 1) {
+        document.getElementById("gaugeChart").style.display = "none";
+        drawMultiGauges(data.eq);
+    } else {
+        document.getElementById("multiGaugeContainer").innerHTML = "";
+        document.getElementById("gaugeChart").style.display = "block";
+        drawChart("chartEquipe", data.eq, "Equipe");
+    }
 }
+// ================= KPI PRODUIT =================
+else if (currentView === "produit" && Array.isArray(data.prod)) {
 
-        // KPI résumé
+    toggleHistogram(true); // 🔥 ON AFFICHE
+
+    // 🔥 TITRE DYNAMIQUE
+    setHistogramTitle("Produit - Volume des tickets");
+    
+
+    const container = document.getElementById("multiGaugeContainer");
+    if (container) container.innerHTML = "";
+
+    // 🔥 HISTOGRAMME PRODUIT
+    drawProduitHistogram(data.prod);
+
+    // 🔥 COURBE PRODUIT
+    drawChart("chartProduit", data.prod, "Produit");
+}
+        // ================= KPI GLOBAL =================
+        if (data.global !== undefined && currentView !== "tech_perf") {
+            drawGauge(Number(data.global));
+            toggleHistogram(false);
+        }
+
+        // ================= KPI SUMMARY =================
         document.getElementById("kpiTotal").innerHTML = `
-    <span style="font-size:28px;font-weight:bold;">
-        ${data.total.toLocaleString()}
-    </span>
-    <br>
-    <span style="color:gray;font-size:14px;">
-        interventions
-    </span>
-`;
+            <span style="font-size:28px;font-weight:bold;">
+                ${data.total.toLocaleString()}
+            </span>
+            <br>
+            <span style="color:gray;font-size:14px;">
+                interventions
+            </span>
+        `;
 
-document.getElementById("kpiLabel").innerHTML = `
-    Délai moyen : <b>${data.global} j</b>
-`;
+        document.getElementById("kpiLabel").innerHTML = `
+            Délai moyen : <b>${data.global} j</b>
+        `;
 
     } catch (err) {
         console.error("JS ERROR:", err);
@@ -165,10 +214,14 @@ async function loadFilters() {
 
         populateFilters(data);
 
+        // 🔥 IMPORTANT : sync initial
+        syncTechWithEquipe(data.mapping);
+
     } catch (e) {
         console.error("Erreur filters:", e);
     }
 }
+
 
 // ================= BUILD MAPPING =================
 function buildMapping(data) {
@@ -188,6 +241,7 @@ function buildMapping(data) {
     });
 }
 
+
 // ================= POPULATE FILTERS =================
 function populateFilters(data) {
 
@@ -197,18 +251,21 @@ function populateFilters(data) {
     createCheckboxFilter("filterProduit", data.produits, "produit");
     createCheckboxFilter("filterTechnicien", data.techniciens, "technicien");
 
-    attachEquipeFilter();
+    attachEquipeFilter(data.mapping);
 }
 
+
 // ================= FILTRE ÉQUIPE → TECH =================
-function attachEquipeFilter() {
+function attachEquipeFilter(mapping) {
 
     document.querySelectorAll("input[name='equipe']").forEach(cb => {
 
         cb.addEventListener("change", () => {
 
             const selected = getChecked("equipe").split(",").filter(x => x);
-            console.log("Equipes sélectionnées:", selectedEquipes);
+
+            console.log("Equipes sélectionnées:", selected);
+
             let techs = new Set();
 
             if (selected.length === 0) {
@@ -223,11 +280,13 @@ function attachEquipeFilter() {
                 });
             }
 
+            // 🔥 recréer proprement
             createCheckboxFilter("filterTechnicien", [...techs], "technicien");
         });
 
     });
 }
+
 
 // ================= CHECKBOX BUILDER =================
 function createCheckboxFilter(containerId, values, name) {
@@ -237,6 +296,18 @@ function createCheckboxFilter(containerId, values, name) {
 
     container.innerHTML = "";
 
+    // 🔥 ACTIONS (Select All / None)
+    const actions = document.createElement("div");
+    actions.style.marginBottom = "8px";
+
+    actions.innerHTML = `
+        <button type="button" onclick="selectAll('${name}', true)">Tout</button>
+        <button type="button" onclick="selectAll('${name}', false)">Aucun</button>
+    `;
+
+    container.appendChild(actions);
+
+    // 🔥 CHECKBOXES
     values.forEach(v => {
 
         if (!v) return;
@@ -254,14 +325,19 @@ function createCheckboxFilter(containerId, values, name) {
         container.appendChild(div);
     });
 }
+function selectAll(name, checked) {
 
+    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+        cb.checked = checked;
+    });
+    loadData();
+}
 // ================= GET CHECKED =================
 function getChecked(name) {
     return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`))
         .map(el => el.value)
         .join(",");
 }
-
 // ================= GAUGE =================
 function drawGauge(value) {
 
@@ -576,6 +652,591 @@ function drawMultiGauges(dataset) {
     container.appendChild(globalCard);
 
     createGauge(gaugeGlobal, globalAvg);
+}
+function createGaugeTech(el, value) {
+
+    let chart = echarts.getInstanceByDom(el);
+    if (chart) chart.dispose();
+
+    chart = echarts.init(el);
+
+    chart.setOption({
+        series: [{
+            type: 'gauge',
+            min: 0,
+            max: 10,
+
+            radius: '90%',
+
+            axisLine: {
+                lineStyle: {
+                    width: 10,
+                    color: [
+                        [0.4, '#22c55e'],
+                        [0.6, '#f59e0b'],
+                        [1, '#ef4444']
+                    ]
+                }
+            },
+
+            progress: {
+                show: true,
+                width: 10
+            },
+
+            pointer: {
+                show: false // 🔥 style moderne sans aiguille
+            },
+
+            detail: {
+                valueAnimation: true,
+                formatter: val => val.toFixed(1) + " j",
+                fontSize: 16,
+                offsetCenter: [0, "20%"]
+            },
+
+            data: [{ value: value || 0 }]
+        }]
+    });
+}
+
+function drawMultiGaugesTech(dataset) {
+
+    const container = document.getElementById("multiGaugeContainer");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const grouped = {};
+
+    // 🔥 group by technicien
+    dataset.forEach(d => {
+        const tech = d.Technicien || "N/A";
+        if (!grouped[tech]) grouped[tech] = [];
+        grouped[tech].push(d);
+    });
+
+    // 🔥 tri par performance
+    const sortedTechs = Object.keys(grouped).sort((a, b) => {
+        const avgA = grouped[a].reduce((s, d) => s + (d.Delai || 0), 0) / grouped[a].length;
+        const avgB = grouped[b].reduce((s, d) => s + (d.Delai || 0), 0) / grouped[b].length;
+        return avgA - avgB;
+    });
+
+    sortedTechs.forEach(tech => {
+
+        const dataTech = grouped[tech];
+
+        const avg = dataTech.length
+            ? dataTech.reduce((s, d) => s + (d.Delai || 0), 0) / dataTech.length
+            : 0;
+
+        const total = dataTech.reduce((s, d) => s + (d.Volume || 0), 0);
+
+        const card = document.createElement("div");
+        card.className = "gauge-card";
+
+        const title = document.createElement("div");
+        title.className = "gauge-title";
+
+        // 🎨 couleur dynamique
+        if (avg > 6) title.style.color = "#dc2626";
+        else if (avg > 4) title.style.color = "#f59e0b";
+        else title.style.color = "#16a34a";
+
+        title.innerHTML = `
+            ${tech}<br>
+            <span style="font-size:12px;color:gray;">
+                ${total} interventions • ${avg.toFixed(1)} j
+            </span>
+        `;
+
+        const gaugeDiv = document.createElement("div");
+        gaugeDiv.className = "gauge-box";
+
+        card.appendChild(title);
+        card.appendChild(gaugeDiv);
+        container.appendChild(card);
+
+        createGaugeTech(gaugeDiv, avg);
+    });
+
+    // 🔥 GLOBAL TECH
+    const globalCard = document.createElement("div");
+    globalCard.className = "gauge-card global-card";
+
+    const globalAvg = dataset.length
+        ? dataset.reduce((s, d) => s + (d.Delai || 0), 0) / dataset.length
+        : 0;
+
+    const globalTotal = dataset.reduce((s, d) => s + (d.Volume || 0), 0);
+
+    const titleGlobal = document.createElement("div");
+    titleGlobal.className = "gauge-title";
+
+    titleGlobal.innerHTML = `
+        GLOBAL TECH<br>
+        <span style="font-size:13px;color:#374151;">
+            ${globalTotal} interventions • ${globalAvg.toFixed(1)} j
+        </span>
+    `;
+
+    const gaugeGlobal = document.createElement("div");
+    gaugeGlobal.className = "gauge-box";
+    gaugeGlobal.style.height = "250px";
+
+    globalCard.appendChild(titleGlobal);
+    globalCard.appendChild(gaugeGlobal);
+    container.appendChild(globalCard);
+
+    createGaugeTech(gaugeGlobal, globalAvg);
+}
+function drawMultiGaugesTechOnly(dataset, selectedTechs) {
+
+    const container = document.getElementById("multiGaugeContainer");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const grouped = {};
+
+    dataset.forEach(d => {
+        const tech = d.Technicien || "N/A";
+
+        // 🔥 filtrer uniquement sélection
+        if (selectedTechs.length && !selectedTechs.includes(tech)) return;
+
+        if (!grouped[tech]) grouped[tech] = [];
+        grouped[tech].push(d);
+    });
+
+    Object.keys(grouped).forEach(tech => {
+
+        const dataTech = grouped[tech];
+
+        const avg = dataTech.length
+            ? dataTech.reduce((s, d) => s + (d.Delai || 0), 0) / dataTech.length
+            : 0;
+
+        const total = dataTech.reduce((s, d) => s + (d.Volume || 0), 0);
+
+        const card = document.createElement("div");
+        card.className = "gauge-card";
+
+        const title = document.createElement("div");
+        title.className = "gauge-title";
+
+        // 🎨 couleur dynamique
+        if (avg > 6) title.style.color = "#dc2626";
+        else if (avg > 4) title.style.color = "#f59e0b";
+        else title.style.color = "#16a34a";
+
+        title.innerHTML = `
+            ${tech}<br>
+            <span style="font-size:12px;color:gray;">
+                ${total} interventions • ${avg.toFixed(1)} j
+            </span>
+        `;
+
+        const gaugeDiv = document.createElement("div");
+        gaugeDiv.className = "gauge-box";
+
+        card.appendChild(title);
+        card.appendChild(gaugeDiv);
+        container.appendChild(card);
+
+        createGaugeTech(gaugeDiv, avg);
+    });
+}
+function syncTechWithEquipe(mapping) {
+
+    const selectedEquipes = getChecked("equipe").split(",").filter(x => x);
+
+    document.querySelectorAll("#filterTechnicien input").forEach(cb => {
+
+        const tech = cb.value;
+
+        const eq = mapping.find(m => m.Technicien === tech)?.Equipe;
+
+        if (selectedEquipes.length === 0 || selectedEquipes.includes(eq)) {
+            cb.parentElement.style.display = "block";
+        } else {
+            cb.parentElement.style.display = "none";
+            cb.checked = false;
+        }
+    });
+}
+function drawTechHistogram(dataset) {
+
+    if (!dataset || dataset.length === 0) return;
+
+    const ctx = document.getElementById("chartTechHistogram");
+    if (!ctx) return;
+
+    if (ctx.chart) ctx.chart.destroy();
+
+    // 🔥 1. GROUPING (corrigé)
+    const grouped = {};
+
+    dataset.forEach(d => {
+        const tech = d.Technicien || "N/A";
+
+        if (!grouped[tech]) {
+            grouped[tech] = {
+                volume: 0,
+                delai: []
+            };
+        }
+
+        grouped[tech].volume += (d.Volume || 0);
+        grouped[tech].delai.push(Number(d.Delai) || 0);
+    });
+
+    // 🔥 2. TRI + CALCUL
+    const sorted = Object.entries(grouped)
+        .map(([tech, obj]) => {
+            const avg = obj.delai.length
+                ? obj.delai.reduce((a, b) => a + b, 0) / obj.delai.length
+                : 0;
+
+            return {
+                tech,
+                volume: obj.volume,
+                avg: avg
+            };
+        })
+        .sort((a, b) => b.volume - a.volume);
+
+    // 🔥 3. EXTRACTION
+    const labels = sorted.map(x => x.tech);
+    const values = sorted.map(x => x.volume);
+    const delays = sorted.map(x => x.avg);
+
+    const colors = labels.map((_, i) => getColor(i));
+
+    // 🔥 4. CHART
+    ctx.chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label: "Tickets",
+                data: values,
+                backgroundColor: colors,
+                borderRadius: 6,
+                barPercentage: 0.7,
+                categoryPercentage: 0.8,
+                borderSkipped: false
+            }]
+        },
+
+        options: {
+            ...commonOptions,
+
+            layout: {
+                padding: {
+                    top: 50,
+                    right: 60,
+                    left: 60
+                }
+            },
+
+            plugins: {
+                ...commonOptions.plugins,
+                legend: { display: false },
+
+                datalabels: {
+                    anchor: 'end',
+                    align: 'end',
+                    offset: 6,
+                    clamp: true,
+                    clip: false,
+                    overflow: 'visible',
+
+                    color: (context) => {
+                    const avg = delays[context.dataIndex];
+                    if (avg > 6) return "#dc2626";   // rouge
+                    if (avg > 4) return "#f59e0b";   // orange
+                    return "#16a34a";                // vert
+                    },
+                    font: {
+                        size: 12,
+                        weight: 'bold'
+                    },
+                    formatter: (value, context) => {
+                        const avg = delays[context.dataIndex] || 0;
+                        return [
+                            value,
+                            avg.toFixed(1) + " j"
+                        ];
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 30,
+                        autoSkip: true
+                    }
+                },
+                y: {
+                    beginAtZero: true
+                }
+            }
+        },
+
+        plugins: [ChartDataLabels]
+    });
+}
+function drawEquipeHistogram(dataset) {
+
+    if (!dataset || dataset.length === 0) return;
+
+    const ctx = document.getElementById("chartTechHistogram"); // 🔥 même canvas
+    if (!ctx) return;
+
+    if (ctx.chart) ctx.chart.destroy();
+
+    // 🔥 GROUPING PAR EQUIPE
+    const grouped = {};
+
+    dataset.forEach(d => {
+        const eq = d.Equipe || "N/A";
+
+        if (!grouped[eq]) {
+            grouped[eq] = {
+                volume: 0,
+                delai: []
+            };
+        }
+
+        grouped[eq].volume += (d.Volume || 0);
+        grouped[eq].delai.push(Number(d.Delai) || 0);
+    });
+
+    // 🔥 TRI
+    const sorted = Object.entries(grouped)
+        .map(([eq, obj]) => {
+            const avg = obj.delai.length
+                ? obj.delai.reduce((a, b) => a + b, 0) / obj.delai.length
+                : 0;
+
+            return {
+                eq,
+                volume: obj.volume,
+                avg
+            };
+        })
+        .sort((a, b) => b.volume - a.volume);
+
+    const labels = sorted.map(x => x.eq);
+    const values = sorted.map(x => x.volume);
+    const delays = sorted.map(x => x.avg);
+
+    const colors = labels.map((_, i) => getColor(i));
+
+    // 🔥 CHART IDENTIQUE AU TECH
+    ctx.chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label: "Tickets",
+                data: values,
+                backgroundColor: colors,
+                borderRadius: 6,
+                barPercentage: 0.7,
+                categoryPercentage: 0.8,
+                borderSkipped: false
+            }]
+        },
+
+        options: {
+            ...commonOptions,
+
+            layout: {
+                padding: {
+                    top: 50,
+                    right: 60,
+                    left: 60
+                }
+            },
+
+            plugins: {
+                ...commonOptions.plugins,
+                legend: { display: false },
+
+                datalabels: {
+                    anchor: 'end',
+                    align: 'end',
+                    offset: 6,
+                    clamp: true,
+                    clip: false,
+                    overflow: 'visible',
+                    color: (context) => {
+                        const avg = delays[context.dataIndex] || 0;
+                        if (avg > 6) return "#dc2626";
+                        if (avg > 4) return "#f59e0b";
+                        return "#16a34a";
+                    },
+                    font: {
+                        size: 12,
+                        weight: 'bold'
+                    },
+                    formatter: (value, context) => {
+                        const avg = delays[context.dataIndex] || 0;
+                        return [
+                            value,
+                            avg.toFixed(1) + " j"
+                        ];
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 30,
+                        autoSkip: false
+                    }
+                },
+                y: {
+                    beginAtZero: true
+                }
+            }
+        },
+
+        plugins: [ChartDataLabels]
+    });
+}
+function toggleHistogram(show) {
+    const el = document.getElementById("histogramContainer");
+    if (!el) return;
+
+    if (show) {
+        el.classList.remove("hidden");
+    } else {
+        el.classList.add("hidden");
+    }
+}
+function drawProduitHistogram(dataset) {
+
+    if (!dataset || dataset.length === 0) return;
+
+    const ctx = document.getElementById("chartTechHistogram");
+    if (!ctx) return;
+
+    if (ctx.chart) ctx.chart.destroy();
+
+    // 🔥 GROUPING PRODUIT
+    const grouped = {};
+
+    dataset.forEach(d => {
+        const prod = d.Produit || "N/A";
+
+        if (!grouped[prod]) {
+            grouped[prod] = {
+                volume: 0,
+                delai: []
+            };
+        }
+
+        grouped[prod].volume += (d.Volume || 0);
+        grouped[prod].delai.push(Number(d.Delai) || 0);
+    });
+
+    const sorted = Object.entries(grouped)
+        .map(([prod, obj]) => {
+            const avg = obj.delai.length
+                ? obj.delai.reduce((a, b) => a + b, 0) / obj.delai.length
+                : 0;
+
+            return {
+                prod,
+                volume: obj.volume,
+                avg
+            };
+        })
+        .sort((a, b) => b.volume - a.volume);
+
+    const labels = sorted.map(x => x.prod);
+    const values = sorted.map(x => x.volume);
+    const delays = sorted.map(x => x.avg);
+
+    const colors = labels.map((_, i) => getColor(i));
+
+    ctx.chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label: "Tickets",
+                data: values,
+                backgroundColor: colors,
+                borderRadius: 6,
+                barPercentage: 0.7,
+                categoryPercentage: 0.8,
+                borderSkipped: false
+            }]
+        },
+
+        options: {
+            ...commonOptions,
+            layout: {
+                padding: { top: 50, right: 60, left: 60 }
+            },
+            plugins: {
+                ...commonOptions.plugins,
+                legend: { display: false },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'end',
+                    offset: 6,
+                    clamp: true,
+                    clip: false,
+                    overflow: 'visible',
+                    color: (context) => {
+                        const avg = delays[context.dataIndex] || 0;
+                        if (avg > 6) return "#dc2626";
+                        if (avg > 4) return "#f59e0b";
+                        return "#16a34a";
+                    },
+                    font: { size: 12, weight: 'bold' },
+                    formatter: (value, context) => {
+                        const avg = delays[context.dataIndex] || 0;
+                        return [
+                            value,
+                            avg.toFixed(1) + " j"
+                        ];
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 30,
+                        autoSkip: false
+                    }
+                },
+                y: { beginAtZero: true }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+function setHistogramTitle(text) {
+    const el = document.getElementById("histogramTitle");
+    if (!el) return;
+
+    // 🔥 force refresh DOM
+    el.textContent = "";
+    setTimeout(() => {
+        el.textContent = text;
+    }, 0);
 }
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {

@@ -291,3 +291,30 @@ canvas {
     background: #ffffff;
     border: 2px solid #e5e7eb;
 }
+.btn.active {
+    background: #2563eb;
+    color: white;
+}
+#filterEquipe button,
+#filterTechnicien button,
+#filterProduit button {
+    margin-right: 5px;
+    padding: 3px 8px;
+    border: none;
+    background: #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#filterEquipe button:hover,
+#filterTechnicien button:hover,
+#filterProduit button:hover {
+    background: #d1d5db;
+}
+.hidden {
+    display: none !important;
+}
+#histogramContainer.hidden {
+    margin: 0 !important;
+    padding: 0 !important;
+}

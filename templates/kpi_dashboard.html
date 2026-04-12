@@ -12,6 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    
 </head>
 
 <body>
@@ -39,9 +40,10 @@
     <!-- ACTIONS -->
     <div class="card">
         <div class="actions">
-            <button class="btn primary" onclick="showView('tech')">KPI Technicien</button>
-            <button class="btn success" onclick="showView('equipe')">KPI Équipe</button>
-            <button class="btn warning" onclick="showView('produit')">KPI Produit</button>
+            <button class="btn primary" onclick="showView('tech')">📈KPI Techniciens</button>
+            <button class="btn success" onclick="showView('equipe')">KPI Équipe👥</button>
+            <button class="btn warning" onclick="showView('produit')">KPI Produit📦</button>
+            <button class="btn info" onclick="showView('tech_perf')">📊Performance Techniciens</button>
         </div>
     </div>
 
@@ -104,12 +106,26 @@
         <div id="multiGaugeContainer"></div>
 
         <!-- CHARTS -->
-        <div class="grid">
+<div class="grid">
+    <!-- 📊 HISTOGRAMME -->
+    <div class="chart-card">
+        <div class="chart-card">
+    <h3 id="histogramTitle">Technicien - Volume des tickets</h3>
+    <h3 id="histogramTitle" style="font-weight:600;color:#374151;"></h3>
+        <div style="height:300px;">
+            <canvas id="chartTechHistogram"></canvas>
+        </div>
+    </div>
 
-            <div class="chart-card">
-                <h3>Technicien</h3>
-                <canvas id="chartTech"></canvas>
-            </div>
+    <!-- 📈 COURBE -->
+    <div class="chart-card">
+        <h3>Technicien - Évolution</h3>
+        <canvas id="chartTech"></canvas>
+    </div>
+
+    
+
+</div>
 
             <div class="chart-card">
                 <h3>Equipe</h3>
