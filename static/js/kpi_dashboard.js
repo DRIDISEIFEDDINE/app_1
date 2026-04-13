@@ -1277,44 +1277,38 @@ async function generateReport() {
         async function addChart(id) {
 
     const el = document.getElementById(id);
-    if (!el) return;
+    if (!el) return false;
 
     await new Promise(r => setTimeout(r, 500));
 
     const canvas = await html2canvas(el, { scale: 2 });
+
     console.log("Canvas size:", canvas.width, canvas.height);
 
-    // 🔥 sécurité canvas
     if (!canvas || canvas.width === 0 || canvas.height === 0) {
         console.warn("Canvas invalide:", id);
-        return;
+        return false;
     }
 
     let imgData;
     try {
         imgData = canvas.toDataURL("image/jpeg", 0.95);
     } catch (e) {
-        console.warn("Erreur conversion image:", id);
-        return;
+        return false;
     }
 
     if (!imgData || imgData.length < 5000) {
-        console.warn("Image corrompue:", id);
-        return;
+        return false;
     }
 
     const imgWidth = 180;
-
-    // 🔥 SAFE HEIGHT (IMPORTANT)
     let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
     if (!isFinite(imgHeight) || imgHeight <= 0) {
-        console.warn("Height invalide, fallback utilisé");
-        imgHeight = 60; // fallback safe
+        imgHeight = 60;
     }
 
     const blockHeight = imgHeight + 10;
-
     const safe = doc.internal.pageSize.height - 15;
 
     if (y + blockHeight > safe) {
@@ -1325,7 +1319,9 @@ async function generateReport() {
     doc.addImage(imgData, "JPEG", 10, y, imgWidth, imgHeight);
 
     y += blockHeight;
-}     
+
+    return true; // ✅ IMPORTANT
+}
         // ================================
 // ================================
 // 🔥 GRAPHE 1 : GAUGE
