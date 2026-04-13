@@ -90,22 +90,33 @@ async function loadData() {
         }
 
         // ================= PERFORMANCE TECH =================
-        if (currentView === "tech_perf" && Array.isArray(data.tech)) {
+if (currentView === "tech_perf" && Array.isArray(data.tech)) {
 
-            const selectedTechs = getChecked("technicien").split(",").filter(x => x);
+    toggleHistogram(true);
+    setHistogramTitle("Technicien - Volume des tickets");
 
-            const container = document.getElementById("multiGaugeContainer");
-            const chartEl = document.getElementById("chartTech");
-            const mainGauge = document.getElementById("gaugeChart");
+    const selectedTechs = getChecked("technicien").split(",").filter(x => x);
 
-            if (chartEl) chartEl.style.display = "none";
-            if (mainGauge) mainGauge.style.display = "none";
+    const container = document.getElementById("multiGaugeContainer");
+    const chartEl = document.getElementById("chartTech");
+    const mainGauge = document.getElementById("gaugeChart");
 
-            if (container) container.innerHTML = "";
+    // 🔥 cacher autres graphes
+    if (chartEl) chartEl.style.display = "none";
+    if (mainGauge) mainGauge.style.display = "none";
 
-            drawMultiGaugesTechOnly(data.tech, selectedTechs);
-        }
+    if (container) container.innerHTML = "";
 
+    // 🔥 gauges
+    drawMultiGaugesTechOnly(data.tech, selectedTechs);
+
+    // ✅ 🔥 ICI EXACTEMENT (filtrage histogramme)
+    const filteredData = data.tech.filter(d =>
+        selectedTechs.length === 0 || selectedTechs.includes(d.Technicien)
+    );
+
+    drawTechHistogram(filteredData);
+}
         // ================= KPI TECH =================
 else if (currentView === "tech" && Array.isArray(data.tech)) {
 
@@ -1237,6 +1248,88 @@ function setHistogramTitle(text) {
     setTimeout(() => {
         el.textContent = text;
     }, 0);
+}
+async function generateReport() {
+
+    try {
+
+        console.log("📄 Génération rapport...");
+
+        const { jsPDF } = window.jspdf;
+
+        if (!jsPDF) {
+            alert("jsPDF non chargé");
+            return;
+        }
+
+        const doc = new jsPDF("p", "mm", "a4");
+
+        const dateStart = document.getElementById("dateStart")?.value || "";
+        const dateEnd = document.getElementById("dateEnd")?.value || "";
+
+        // 🔥 TITRE
+        doc.setFontSize(16);
+        doc.text("Rapport d’activité équipe Intervention MS", 105, 15, { align: "center" });
+
+        // 🔥 PÉRIODE
+        doc.setFontSize(10);
+        doc.text(`Période : ${dateStart} → ${dateEnd}`, 10, 25);
+
+        let y = 35;
+
+        // 🔥 CAPTURE SAFE
+        async function addChart(id, title) {
+
+    const el = document.getElementById(id);
+
+    if (!el) {
+        console.warn("Element introuvable:", id);
+        return;
+    }
+
+    // 🔥 attendre rendu complet
+    await new Promise(r => setTimeout(r, 300));
+
+    const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true
+    });
+
+    const imgData = canvas.toDataURL("image/jpeg", 1.0);
+
+    // 🔥 sécurité jsPDF
+    if (!imgData || imgData.length < 1000) {
+        console.warn("Image invalide:", id);
+        return;
+    }
+
+    if (y > 250) {
+        doc.addPage();
+        y = 20;
+    }
+
+    doc.setFontSize(11);
+    doc.text(title, 10, y);
+    y += 5;
+
+    doc.addImage(imgData, "JPEG", 10, y, 180, 60);
+    y += 70;
+}
+        // 🔥 AJOUT DES GRAPHS
+        await addChart("gaugeChart", "Performance globale");
+        await addChart("chartTechHistogram", "Techniciens - Volume des tickets");
+        await addChart("chartEquipe", "Équipe - Évolution");
+        await addChart("chartProduit", "Produit - Évolution");
+
+        // 🔥 SAVE
+        doc.save(`rapport_${dateStart}_${dateEnd}.pdf`);
+
+        console.log("✅ Rapport généré");
+
+    } catch (err) {
+        console.error("❌ ERREUR RAPPORT:", err);
+        alert("Erreur génération rapport: " + err.message);
+    }
 }
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {

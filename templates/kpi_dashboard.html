@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas"></script>
     
 </head>
 
@@ -44,6 +46,7 @@
             <button class="btn success" onclick="showView('equipe')">KPI Équipe👥</button>
             <button class="btn warning" onclick="showView('produit')">KPI Produit📦</button>
             <button class="btn info" onclick="showView('tech_perf')">📊Performance Techniciens</button>
+            <button class="btn dark" onclick="generateReport()">📄 Rapport</button>
         </div>
     </div>
 
