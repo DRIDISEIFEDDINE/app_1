@@ -74,7 +74,7 @@ async function loadData() {
 
         const res = await fetch("/api/kpi?" + params.toString());
         const data = await res.json();
-
+        window.lastData = data;
         if (data.error) {
             console.error(data.error);
             alert(data.error);
@@ -135,6 +135,7 @@ else if (currentView === "tech" && Array.isArray(data.tech)) {
     
     drawChart("chartTech", data.tech, "Technicien");
     drawTechHistogram(data.tech);
+    
     drawGauge(Number(data.global));
 }
 
@@ -1252,16 +1253,11 @@ function setHistogramTitle(text) {
 async function generateReport() {
 
     try {
-
-        console.log("📄 Génération rapport...");
-
-        const { jsPDF } = window.jspdf;
-
-        if (!jsPDF) {
-            alert("jsPDF non chargé");
+        if (!window.lastData) {
+            alert("Veuillez charger les données avant de générer le rapport");
             return;
         }
-
+        const { jsPDF } = window.jspdf;
         const doc = new jsPDF("p", "mm", "a4");
 
         const dateStart = document.getElementById("dateStart")?.value || "";
@@ -1277,59 +1273,138 @@ async function generateReport() {
 
         let y = 35;
 
-        // 🔥 CAPTURE SAFE
-        async function addChart(id, title) {
+        // 🔥 fonction image (corrigée JPEG)
+        async function addChart(id) {
 
     const el = document.getElementById(id);
+    if (!el) return;
 
-    if (!el) {
-        console.warn("Element introuvable:", id);
+    await new Promise(r => setTimeout(r, 500));
+
+    const canvas = await html2canvas(el, { scale: 2 });
+    console.log("Canvas size:", canvas.width, canvas.height);
+
+    // 🔥 sécurité canvas
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        console.warn("Canvas invalide:", id);
         return;
     }
 
-    // 🔥 attendre rendu complet
-    await new Promise(r => setTimeout(r, 300));
-
-    const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true
-    });
-
-    const imgData = canvas.toDataURL("image/jpeg", 1.0);
-
-    // 🔥 sécurité jsPDF
-    if (!imgData || imgData.length < 1000) {
-        console.warn("Image invalide:", id);
+    let imgData;
+    try {
+        imgData = canvas.toDataURL("image/jpeg", 0.95);
+    } catch (e) {
+        console.warn("Erreur conversion image:", id);
         return;
     }
 
-    if (y > 250) {
+    if (!imgData || imgData.length < 5000) {
+        console.warn("Image corrompue:", id);
+        return;
+    }
+
+    const imgWidth = 180;
+
+    // 🔥 SAFE HEIGHT (IMPORTANT)
+    let imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    if (!isFinite(imgHeight) || imgHeight <= 0) {
+        console.warn("Height invalide, fallback utilisé");
+        imgHeight = 60; // fallback safe
+    }
+
+    const blockHeight = imgHeight + 10;
+
+    const safe = doc.internal.pageSize.height - 15;
+
+    if (y + blockHeight > safe) {
         doc.addPage();
         y = 20;
     }
 
-    doc.setFontSize(11);
-    doc.text(title, 10, y);
-    y += 5;
+    doc.addImage(imgData, "JPEG", 10, y, imgWidth, imgHeight);
 
-    doc.addImage(imgData, "JPEG", 10, y, 180, 60);
-    y += 70;
-}
-        // 🔥 AJOUT DES GRAPHS
-        await addChart("gaugeChart", "Performance globale");
-        await addChart("chartTechHistogram", "Techniciens - Volume des tickets");
-        await addChart("chartEquipe", "Équipe - Évolution");
-        await addChart("chartProduit", "Produit - Évolution");
+    y += blockHeight;
+}     
+        // ================================
+// ================================
+// 🔥 GRAPHE 1 : GAUGE
+y = addSectionTitle(doc, "Performance d’équipe", y);
+await addChart("gaugeChart");
 
+// ================================
+// 🔥 GRAPHE 2 : TECH
+y = addSectionTitle(doc, "Technicien - Volume des tickets", y);
+const canvas = document.getElementById("chartTechHistogram");
+if (canvas && canvas.chart) canvas.chart.destroy();
+drawTechHistogram(window.lastData.tech);
+await new Promise(r => setTimeout(r, 500));
+await addChart("chartTechHistogram");
+
+// ================================
+// 🔥 GRAPHE 3 : EQUIPE
+y = addSectionTitle(doc, "Equipe - Volume des tickets", y);
+
+drawEquipeHistogram(window.lastData.eq);
+await new Promise(r => setTimeout(r, 500));
+await addChart("chartTechHistogram");
+
+// ================================
+// 🔥 GRAPHE 4 : EQUIPE COURBE
+y = addSectionTitle(doc, "Equipe - Volume des tickets par jour", y);
+
+drawChart("chartEquipe", window.lastData.eq, "Equipe");
+await new Promise(r => setTimeout(r, 500));
+await addChart("chartEquipe");
+
+// ================================
+// 🔥 GRAPHE 5 : PRODUIT
+y = addSectionTitle(doc, "Produit - Volume des tickets", y);
+
+drawProduitHistogram(window.lastData.prod);
+await new Promise(r => setTimeout(r, 500));
+await addChart("chartTechHistogram");
+
+// ================================
+// 🔥 GRAPHE 6 : PRODUIT COURBE
+y = addSectionTitle(doc, "Produit - Volume des tickets par jour", y);
+
+drawChart("chartProduit", window.lastData.prod, "Produit");
+await new Promise(r => setTimeout(r, 500));
+await addChart("chartProduit");
         // 🔥 SAVE
         doc.save(`rapport_${dateStart}_${dateEnd}.pdf`);
 
-        console.log("✅ Rapport généré");
-
     } catch (err) {
-        console.error("❌ ERREUR RAPPORT:", err);
+        console.error(err);
         alert("Erreur génération rapport: " + err.message);
     }
+}
+function addSectionTitle(doc, text, y) {
+
+    const estimatedChartHeight = 80; // 🔥 marge sécurité
+    const totalBlock = 12 + estimatedChartHeight;
+
+    const safe = doc.internal.pageSize.height - 15;
+
+    if (y + totalBlock > safe) {
+        doc.addPage();
+        y = 20;
+    }
+
+    doc.setFillColor(255, 102, 0);
+    doc.rect(10, y, 190, 8, "F");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+
+    doc.text(text, 12, y + 6);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, "normal");
+
+    return y + 12;
 }
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {
