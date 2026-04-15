@@ -450,11 +450,11 @@ function drawChart(id, dataset, field) {
 
     if (!dataset || dataset.length === 0) {
         console.warn("Dataset vide pour", id);
-        return;
+        return null;
     }
 
     const ctx = document.getElementById(id);
-    if (!ctx) return;
+    if (!ctx) return null;
 
     // 🔥 destroy propre
     if (ctx.chart) {
@@ -482,13 +482,31 @@ function drawChart(id, dataset, field) {
         fill: false
     }));
 
-    ctx.chart = new Chart(ctx, {
+     // 🔥 CREATION CHART
+    const chart = new Chart(ctx, {
         type: "line",
         data: { labels, datasets },
 
-        options: commonOptions,          // ✅ config pro appliquée
-        plugins: [ChartDataLabels]       // ✅ valeurs affichées
+        options: {
+            ...commonOptions,
+
+            // 🔥 HOOK CRITIQUE (PDF FIX)
+            animation: {
+                ...commonOptions.animation,
+                onComplete: () => {
+                    ctx.chartReady = true; // ✅ FLAG READY
+                }
+            }
+        },
+
+        plugins: [ChartDataLabels]
     });
+
+    ctx.chart = chart;
+    ctx.chartReady = false; // 🔥 reset
+
+    return chart; // ✅ IMPORTANT
+
 }
 // ================= CHART CONFIG PRO =================
 const commonOptions = {
@@ -1263,52 +1281,94 @@ async function generateReport() {
         const dateStart = document.getElementById("dateStart")?.value || "";
         const dateEnd = document.getElementById("dateEnd")?.value || "";
 
-        // 🔥 TITRE
-        doc.setFontSize(16);
-        doc.text("Rapport d’activité équipe Intervention MS", 105, 15, { align: "center" });
+// 🔥 HEADER PRO
+const pageWidth = doc.internal.pageSize.width;
 
-        // 🔥 PÉRIODE
-        doc.setFontSize(10);
-        doc.text(`Période : ${dateStart} → ${dateEnd}`, 10, 25);
+doc.rect(10, 10, pageWidth - 20, 15);
 
-        let y = 35;
+// 🔥 TITRE
+doc.setFontSize(16);
+doc.setFont(undefined, "bold");
+// 🔥 TITRE
+doc.text(
+    "Rapport d’activité équipe Intervention MS",
+    pageWidth / 2,
+    20,
+    { align: "center" }
+);
+
+// 🔥 PÉRIODE (descendue)
+doc.setFontSize(11);
+doc.setFont(undefined, "bold");
+doc.text("Période :", 10, 35); // ⬅️ avant 32
+
+doc.setFont(undefined, "normal");
+doc.text(`${dateStart} → ${dateEnd}`, 40, 35);
+
+// 🔥 LIGNE (descendue aussi)
+doc.setDrawColor(180);
+doc.line(10, 38, pageWidth - 10, 38);
+
+// 🔥 KPI (encore plus bas)
+doc.setFont(undefined, "bold");
+
+doc.text(
+    `Total interventions : ${window.lastData.total}`,
+    10,
+    48 // ⬅️ avant ~40
+);
+
+doc.text(
+    `Délai moyen : ${window.lastData.global} j`,
+    pageWidth - 10,
+    48,
+    { align: "right" }
+);
+
+// 🔥 point de départ contenu
+let y = 60;
 
         // 🔥 fonction image (corrigée JPEG)
         async function addChart(id) {
 
     const el = document.getElementById(id);
-    if (!el) return false;
+    if (!el) return;
 
     await new Promise(r => setTimeout(r, 500));
 
     const canvas = await html2canvas(el, { scale: 2 });
 
-    console.log("Canvas size:", canvas.width, canvas.height);
-
+    // 🔥 sécurité canvas
     if (!canvas || canvas.width === 0 || canvas.height === 0) {
         console.warn("Canvas invalide:", id);
-        return false;
+        return;
     }
 
     let imgData;
     try {
         imgData = canvas.toDataURL("image/jpeg", 0.95);
     } catch (e) {
-        return false;
+        console.warn("Erreur conversion image:", id);
+        return;
     }
 
     if (!imgData || imgData.length < 5000) {
-        return false;
+        console.warn("Image corrompue:", id);
+        return;
     }
 
     const imgWidth = 180;
+
+    // 🔥 SAFE HEIGHT (IMPORTANT)
     let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
     if (!isFinite(imgHeight) || imgHeight <= 0) {
-        imgHeight = 60;
+        console.warn("Height invalide, fallback utilisé");
+        imgHeight = 60; // fallback safe
     }
 
     const blockHeight = imgHeight + 10;
+
     const safe = doc.internal.pageSize.height - 15;
 
     if (y + blockHeight > safe) {
@@ -1319,9 +1379,7 @@ async function generateReport() {
     doc.addImage(imgData, "JPEG", 10, y, imgWidth, imgHeight);
 
     y += blockHeight;
-
-    return true; // ✅ IMPORTANT
-}
+}     
         // ================================
 // ================================
 // 🔥 GRAPHE 1 : GAUGE
@@ -1330,29 +1388,51 @@ await addChart("gaugeChart");
 
 // ================================
 // 🔥 GRAPHE 2 : TECH
-y = addSectionTitle(doc, "Technicien - Volume des tickets", y);
-const canvas = document.getElementById("chartTechHistogram");
-if (canvas && canvas.chart) canvas.chart.destroy();
-drawTechHistogram(window.lastData.tech);
-await new Promise(r => setTimeout(r, 500));
-await addChart("chartTechHistogram");
+const canvas1 = document.getElementById("chartTechHistogram");
+if (canvas1 && canvas1.chart) canvas1.chart.destroy();
 
+drawTechHistogram(window.lastData.tech);
+
+await new Promise(r => setTimeout(r, 400));
+
+y = addSectionTitle(doc, "Technicien - Volume des tickets", y);
+
+await addChart("chartTechHistogram");
 // ================================
 // 🔥 GRAPHE 3 : EQUIPE
-y = addSectionTitle(doc, "Equipe - Volume des tickets", y);
+const canvas2 = document.getElementById("chartTechHistogram");
+if (canvas2 && canvas2.chart) canvas2.chart.destroy();
 
 drawEquipeHistogram(window.lastData.eq);
-await new Promise(r => setTimeout(r, 500));
+
+await new Promise(r => setTimeout(r, 400));
+
+y = addSectionTitle(doc, "Equipe - Volume des tickets", y);
+
 await addChart("chartTechHistogram");
 
 // ================================
 // 🔥 GRAPHE 4 : EQUIPE COURBE
-y = addSectionTitle(doc, "Equipe - Volume des tickets par jour", y);
+// ================================
+
+
+// 🔥 1. REDESSINER LE CHART (OBLIGATOIRE)
+const canvasEquipe = document.getElementById("chartEquipe");
 
 drawChart("chartEquipe", window.lastData.eq, "Equipe");
-await new Promise(r => setTimeout(r, 500));
-await addChart("chartEquipe");
 
+// 🔥 2. ATTENDRE RENDU RÉEL
+await waitChartReady(canvasEquipe);
+
+// 🔥 3. AJOUTER TITRE APRÈS RENDU
+y = addSectionTitle(doc, "Equipe - Volume des tickets par jour", y);
+
+// 🔥 4. CAPTURE
+const ok = await addChart("chartEquipe");
+
+if (!ok) {
+    console.warn("chartEquipe non capturé");
+}
 // ================================
 // 🔥 GRAPHE 5 : PRODUIT
 y = addSectionTitle(doc, "Produit - Volume des tickets", y);
@@ -1401,6 +1481,21 @@ function addSectionTitle(doc, text, y) {
     doc.setFont(undefined, "normal");
 
     return y + 12;
+}
+async function waitChartReady(canvas) {
+    await new Promise(resolve => {
+        const check = () => {
+            if (canvas.chartReady) resolve();
+            else requestAnimationFrame(check);
+        };
+        check();
+    });
+
+    await new Promise(r =>
+        requestAnimationFrame(() =>
+            requestAnimationFrame(r)
+        )
+    );
 }
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => {
