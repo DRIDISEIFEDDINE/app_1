@@ -40,11 +40,27 @@ def get_latest_excel():
         print("❌ Aucun fichier trouvé")
         return None
 
-    latest = max(files, key=os.path.getctime)
+    import re
+
+    def extract_date(filepath):
+        filename = os.path.basename(filepath)
+
+        match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
+        if match:
+            try:
+                return pd.to_datetime(match.group(1))
+            except:
+                return pd.Timestamp.min
+
+        return pd.Timestamp.min
+
+    # 🔥 tri basé sur la date dans le nom
+    latest = max(files, key=extract_date)
+
+    print("📂 Fichiers trouvés:", files)
     print("📄 Fichier utilisé:", latest)
+
     return latest
-
-
 # ================= LECTURE EXCEL =================
 def load_raw():
     file = get_latest_excel()
@@ -122,7 +138,7 @@ def process(df):
     # ===== TECH + EQUIPE (FIX IMPORTANT) =====
     df["Technicien"] = df[col_tech] if col_tech else "N/A"
     df["Equipe"] = df["Technicien"].map(TECH_EQUIPE_MAP).fillna("N/A")
-
+    
     return df
 
 

@@ -160,7 +160,9 @@ else if (currentView === "equipe" && Array.isArray(data.eq)) {
     } else {
         document.getElementById("multiGaugeContainer").innerHTML = "";
         document.getElementById("gaugeChart").style.display = "block";
-        drawChart("chartEquipe", data.eq, "Equipe");
+        setTimeout(() => {
+    drawChart("chartEquipe", data.eq, "Equipe");
+}, 100)
     }
 }
 // ================= KPI PRODUIT =================
@@ -443,70 +445,92 @@ function hideAllCharts() {
 
 function showChart(id) {
     const el = document.getElementById(id);
-    if (el) el.parentElement.style.display = "block";
+
+    if (el && el.parentElement) {
+        // 🔥 affiche le container
+        el.parentElement.style.display = "block";
+
+        // 🔥 force recalcul layout + resize Chart.js
+        setTimeout(() => {
+            if (el.chart) {
+                el.chart.resize();
+            }
+        }, 80);
+    }
 }
 
 function drawChart(id, dataset, field) {
 
     if (!dataset || dataset.length === 0) {
         console.warn("Dataset vide pour", id);
+
+        // 🔥 afficher message utilisateur
+        const el = document.getElementById(id);
+        if (el) {
+            el.parentElement.innerHTML +=
+                "<p style='color:red;text-align:center'>Aucune donnée</p>";
+        }
+
+        return null;
+    }
+
+    // 🔥 filtrer N/A (CRITIQUE)
+    dataset = dataset.filter(d => d[field] && d[field] !== "N/A");
+
+    if (dataset.length === 0) {
+        console.warn("Dataset vide après filtre N/A pour", id);
         return null;
     }
 
     const ctx = document.getElementById(id);
     if (!ctx) return null;
 
-    // 🔥 destroy propre
-    if (ctx.chart) {
-        ctx.chart.destroy();
-    }
+    setTimeout(() => {
 
-    const labels = [...new Set(dataset.map(d => d.Jour))].sort();
+        if (ctx.chart) ctx.chart.destroy();
 
-    const grouped = {};
+        const labels = [...new Set(dataset.map(d => d.Jour))].sort();
 
-    dataset.forEach(d => {
-        const key = d[field] || "N/A";
-        if (!grouped[key]) grouped[key] = {};
-        grouped[key][d.Jour] = d.Volume;
-    });
+        const grouped = {};
 
-    // 🎨 datasets dynamiques
-    const datasets = Object.keys(grouped).map((k, index) => ({
-        label: k,
-        data: labels.map(m => grouped[k][m] || 0),
+        dataset.forEach(d => {
+            const key = d[field];
+            if (!grouped[key]) grouped[key] = {};
+            grouped[key][d.Jour] = d.Volume;
+        });
 
-        borderColor: getColor(index),
-        backgroundColor: getColor(index),
+        const datasets = Object.keys(grouped).map((k, index) => ({
+            label: k,
+            data: labels.map(m => grouped[k][m] || 0),
+            borderColor: getColor(index),
+            backgroundColor: getColor(index),
+            fill: false,
+            tension: 0.3
+        }));
 
-        fill: false
-    }));
-
-     // 🔥 CREATION CHART
-    const chart = new Chart(ctx, {
-        type: "line",
-        data: { labels, datasets },
-
-        options: {
-            ...commonOptions,
-
-            // 🔥 HOOK CRITIQUE (PDF FIX)
-            animation: {
-                ...commonOptions.animation,
-                onComplete: () => {
-                    ctx.chartReady = true; // ✅ FLAG READY
+        const chart = new Chart(ctx, {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+                ...commonOptions,
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    ...commonOptions.animation,
+                    onComplete: () => ctx.chartReady = true
                 }
-            }
-        },
+            },
+            plugins: [ChartDataLabels]
+        });
 
-        plugins: [ChartDataLabels]
-    });
+        ctx.chart = chart;
+        ctx.chartReady = false;
 
-    ctx.chart = chart;
-    ctx.chartReady = false; // 🔥 reset
+        setTimeout(() => chart.resize(), 100);
 
-    return chart; // ✅ IMPORTANT
+    }, 50);
 
+    return ctx.chart || null;
 }
 // ================= CHART CONFIG PRO =================
 const commonOptions = {
@@ -1411,28 +1435,7 @@ y = addSectionTitle(doc, "Equipe - Volume des tickets", y);
 
 await addChart("chartTechHistogram");
 
-// ================================
-// 🔥 GRAPHE 4 : EQUIPE COURBE
-// ================================
 
-
-// 🔥 1. REDESSINER LE CHART (OBLIGATOIRE)
-const canvasEquipe = document.getElementById("chartEquipe");
-
-drawChart("chartEquipe", window.lastData.eq, "Equipe");
-
-// 🔥 2. ATTENDRE RENDU RÉEL
-await waitChartReady(canvasEquipe);
-
-// 🔥 3. AJOUTER TITRE APRÈS RENDU
-y = addSectionTitle(doc, "Equipe - Volume des tickets par jour", y);
-
-// 🔥 4. CAPTURE
-const ok = await addChart("chartEquipe");
-
-if (!ok) {
-    console.warn("chartEquipe non capturé");
-}
 // ================================
 // 🔥 GRAPHE 5 : PRODUIT
 y = addSectionTitle(doc, "Produit - Volume des tickets", y);
@@ -1455,6 +1458,23 @@ await addChart("chartProduit");
         console.error(err);
         alert("Erreur génération rapport: " + err.message);
     }
+    // ================================
+// 🔥 GRAPHE FINAL : EQUIPE COURBE (BON ENDROIT)
+const canvasEquipe = document.getElementById("chartEquipe");
+
+drawChart("chartEquipe", window.lastData.eq, "Equipe");
+
+// 🔥 attendre rendu réel
+await waitChartReady(canvasEquipe);
+
+// 🔥 titre
+y = addSectionTitle(doc, "Equipe - Volume des tickets par jour", y);
+
+// 🔥 sécurité timing
+await new Promise(r => setTimeout(r, 300));
+
+// 🔥 capture
+await addChart("chartEquipe");
 }
 function addSectionTitle(doc, text, y) {
 
