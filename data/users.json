@@ -1,0 +1,87 @@
+{
+  "mohamedachraf.galbi@orange.com": {
+    "password": "scrypt:32768:8:1$B4PO5bmxQVx23GZx$cc1254efced2e78541a0f1a19157b57a3e562fabe1e25e9d8c6dc13d13656fe097b41aedc32d5013eaf5d52169fbc5be8bf98f54567985db0b0abe0f63046ca5",
+    "role": "technicien",
+    "first_login": false
+  },
+  "mohamed.mazgou@orange.com": {
+    "password": "scrypt:32768:8:1$a7PHTe23Rs9bdZUX$35092fb89af9e203efaeb32318dd7afe4922a3d24e11f11e296d127db5d346a69c8f8a961a3c7dd76024c4216979ff3c443008b2f3c90b73494fd7bf4b703b96",
+    "role": "technicien",
+    "first_login": true
+  },
+  "belgacem.mimouni@orange.com": {
+    "password": "scrypt:32768:8:1$R8kJkRUMMT9tL3ar$fb30d38fc84752a7e21d08df73aba714f78f89bf2d3d26504c72d85e9b722301659569aa2e94163d62350c3e56dcf78730e7b0473f9b0e7ecbf30374cbd3943d",
+    "role": "technicien",
+    "first_login": false
+  },
+  "issam.eddinejabou@orange.com": {
+    "password": "scrypt:32768:8:1$90DsbzMS1I3SZC9N$d740623a953c5f9b7a914c810e6e1f637c4f6cf8c1808d431a304d821c43c5f6024359b70244be06baa000fc6f68fb822770fd6ec07de30f1ee462e9bbea9627",
+    "role": "technicien",
+    "first_login": true
+  },
+  "issam.ouechtati@orange.com": {
+    "password": "scrypt:32768:8:1$GLsWPpN5KgSzIwR6$27ba03d69845e2f1ea45275bc33146c592bb18beb4e28c4d5802a52386930b7323c1e1df32967b0e6dc57c01b84e6afb55ccb1b6fce65a9fcfb3350de550d699",
+    "role": "technicien",
+    "first_login": true
+  },
+  "wissem.boubaker@orange.com": {
+    "password": "scrypt:32768:8:1$idKUgTnYnfL19AdB$5d1a5d3c57a80fe3ccbfe860d2172781fd15ae751daceb9d4fdf5fc17bb5e5832a07693aa9938a13876498873f810440df7d3ff0a9c5dab4284df6ab9d5e367b",
+    "role": "technicien",
+    "first_login": false
+  },
+  "bilel.slimene@orange.com": {
+    "password": "scrypt:32768:8:1$IeSQvYBULvouWgvG$7a9fe8f4bb3a74962b6d6c323dbd36cc3029a9cc61ba4f92c722fe50743e4ef245589039734916a83e5d8aa7dd419ba8ed96f7adefe67f519a918bf358e05445",
+    "role": "technicien",
+    "first_login": true
+  },
+  "amine.aoun@orange.com": {
+    "password": "scrypt:32768:8:1$4sOccYY7WYoqZx58$4ad81a672d1f1fd8fd08614c2fa3fb7c30f89ab8f20a1a766937b77d39f437e93bb35738205dc6ae2fbb1adbf7e5b5228f527a03c8a80e148afbbf80eea28bf3",
+    "role": "technicien",
+    "first_login": true
+  },
+  "rabie.jrad@orange.com": {
+    "password": "scrypt:32768:8:1$LfvgT6Vb85f2Hu5e$bb325473b300df3bc5ccea047c1d5c197bd8fcfa2b2be79ebecec2c40f41d30ebca26d40dd13914de27fb5b9442abcd1d05e6c9d0d486a2d48f5f908ee4677b7",
+    "role": "technicien",
+    "first_login": true
+  },
+  "bessem.kefifi@orange.com": {
+    "password": "scrypt:32768:8:1$W12Cscy7NlMfPeW7$c9f1a4ddf0f6d296e339307c99c8378f4d93f6e44fc0aac6ee359ae324d2a71ede5d4306bc5d5725e391d064ad67f6e3ad694f47ebbd6854250e29838566e366",
+    "role": "technicien",
+    "first_login": true
+  },
+  "mohamed.jouini@orange.com": {
+    "password": "scrypt:32768:8:1$GNfxjMnYaytYeNL6$46123db9524ee163b8fdb67d6c267fb92fdf7d5316ff1fa307f340b38b771cff9da1fd011c1fe25dbb6e94bfe1119f33dfa27934330740a655a2d277a126796b",
+    "role": "technicien",
+    "first_login": true
+  },
+  "yassine.khmiss@orange.com": {
+    "password": "scrypt:32768:8:1$J8F3Xqox6dShU4Jc$5f99781615d5a811ff5307b62ee68fcf137b6d09acf323792d225a303fff9f31edc07478db927208dc8e7ee7c34ad88272185d745ecd97ec8d1c0b1cf35522ae",
+    "role": "technicien",
+    "first_login": true
+  },
+  "jihed.mejri@orange.com": {
+    "password": "scrypt:32768:8:1$1VkUMUwYQ6w0LnKG$146df033650c51e22430921138c5a4c0d8785f9a485faed4b0aaf24f0795d04f467b9c57ea1df40776e70156393e205f66796639ff9e884e5adfcb8fe851dd23",
+    "role": "technicien",
+    "first_login": true
+  },
+  "issam.ayoub@orange.com": {
+    "password": "scrypt:32768:8:1$EXFoig1LwMsHOJGm$e70bb276de030e2d7bcc4bac83e7632740e9889cb927839a4d1edec624a85eea18189a19c04cffd8fc002c60f13acbab3c7aded0d63bc0ecbb59b4441b8b4d41",
+    "role": "technicien",
+    "first_login": true
+  },
+  "mohamed.yangui@orange.com": {
+    "password": "scrypt:32768:8:1$khXgMTlyXnMaNooT$f8ea67899613cbd0b43b73b9e0de27f74dc172528125fa81c4b51b109b2735a74aa41d1ae8ae3d7107d8f05493d4a8103676a2a47de60ee86dfea168bdba250e",
+    "role": "technicien",
+    "first_login": true
+  },
+  "abdessttar.hamdi@orange.com": {
+    "password": "scrypt:32768:8:1$uZVsdZgMMo4zesRM$921ed66aca1841ea350932d2adc114fd11bdfddc2cf8255d80b673c8399ca11a47d10c1304f0bf2a5004da21b01262689ca12b1518a3a0241228cae8a28b0ce3",
+    "role": "technicien",
+    "first_login": true
+  },
+  "seifeddine.dridi@orange.com": {
+    "password": "scrypt:32768:8:1$5G4g8zP7317LJkSB$df854f2273d2f284d9b9d5a1dbeb90cd25ca266f5922b0d98382720ab60c12c9c5f813c84e4edd8950c4a48af6dcaef0d8faf43dcb8a0c1c09c567569b97cf85",
+    "role": "admin",
+    "first_login": false
+  }
+}

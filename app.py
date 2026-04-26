@@ -4,6 +4,9 @@ LAST_EXCEL_EXPORT = None
 LAST_EXPORT_FILE = "last_export.xlsx"
 
 # ================= STANDARD LIB =================
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "packages"))
 import hashlib
 import re
 import traceback
@@ -22,7 +25,8 @@ import numpy as np
 
 # ================= FLASK =================
 from flask import Flask, request, jsonify
-
+from flask import session, redirect, url_for
+from modules.auth.routes import auth_bp
 # ================= INTERNAL =================
 _original_md5 = hashlib.md5
 
@@ -111,6 +115,11 @@ ALLOWED_EXTENSIONS = {"xlsx", "xls", "xlsm", "xltx", "xltm"}
 app = Flask(__name__, template_folder=str(TEMPLATE_FOLDER), static_folder=str(STATIC_FOLDER))
 app.register_blueprint(backlog_technicien_bp)
 app.register_blueprint(kpi_bp)
+
+app.secret_key = "super_secret_key_2026"
+
+# 🔐 AUTH
+app.register_blueprint(auth_bp)
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)
 app.config["OUTPUT_FOLDER"] = str(OUTPUT_FOLDER)
 
@@ -131,7 +140,31 @@ def _shared_backlog_loader() -> pd.DataFrame:
         return pd.DataFrame()
 
 app.config["BACKLOGMS_SHARED_LOADER"] = _shared_backlog_loader
+# ================= AUTH DECORATOR =================
+from functools import wraps
 
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def role_required(roles):
+    def wrapper(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if "user" not in session:
+                return redirect(url_for("auth.login"))
+
+            if session.get("role") not in roles:
+                return "Accès refusé", 403
+
+            return f(*args, **kwargs)
+        return decorated
+    return wrapper
 TEAM_MAP = {
     "tunis": "Equipe Nord",
     "nabeul": "Equipe Cap-Bon",
@@ -1866,6 +1899,8 @@ def export_tech_card_details(tech_name):
 
 @app.route("/")
 def index():
+    if "user" not in session:
+        return redirect(url_for("auth.login"))
     return render_template("index.html")
 
 
@@ -1893,6 +1928,7 @@ def static_excel_icon():
 
 
 @app.route("/process", methods=["POST"])
+@login_required
 def process_files():
     global LAST_EXCEL_EXPORT, LAST_DF
 
@@ -2051,6 +2087,7 @@ import smtplib
 import os
 
 @app.route("/send_mail", methods=["POST"])
+@role_required(["admin"])
 def send_mail():
     try:
         data = request.get_json()

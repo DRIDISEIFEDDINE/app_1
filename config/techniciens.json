@@ -1,0 +1,102 @@
+{
+  "FWBH4672": {
+    "name": "Belgacem Mimouni",
+    "email": "belgacem.mimouni@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "GSTN0452": {
+    "name": "Yassine Khmiss",
+    "email": "yassine.khmiss@orange.com",
+    "eds": ["595088"],
+    "team": "Equipe Centre"
+  },
+  "HPHG9846": {
+    "name": "Bilel Slimene",
+    "email": "bilel.slimene@orange.com",
+    "eds": ["595088"],
+    "team": "Equipe Centre"
+  },
+  "JWRS2602": {
+    "name": "Mohamed Yangui",
+    "email": "mohamed.yangui@orange.com",
+    "eds": ["595089"],
+    "team": "Equipe Sud"
+  },
+  "LCXR3850": {
+    "name": "Amine Aoun",
+    "email": "amine.aoun@orange.com",
+    "eds": ["595089"],
+    "team": "Equipe Sud"
+  },
+  "MHZR7744": {
+    "name": "Mohamed Jouini",
+    "email": "mohamed.jouini@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "RBRW1831": {
+    "name": "Abdessttar Hamdi",
+    "email": "abdessttar.hamdi@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "SJLQ5310": {
+    "name": "Mohamedachraf Galbi",
+    "email": "mohamedachraf.galbi@orange.com",
+    "eds": ["595090"],
+    "team": "Equipe Cap-Bon"
+  },
+  "TRFR6037": {
+    "name": "Issam Ayoub",
+    "email": "issam.ayoub@orange.com",
+    "eds": ["595089"],
+    "team": "Equipe Sud"
+  },
+  "XMCS4342": {
+    "name": "Mohamed Mazgou",
+    "email": "mohamed.mazgou@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "ZKVQ3508": {
+    "name": "Wissem Boubaker",
+    "email": "wissem.boubaker@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "RSLV1130": {
+    "name": "Issam Eddinejabou",
+    "email": "issam.eddinejabou@orange.com",
+    "eds": ["595089"],
+    "team": "Equipe Sud"
+  },
+  "JCWK5037": {
+    "name": "Jihed Mejri",
+    "email": "jihed.mejri@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "TBDQ9867": {
+    "name": "Rabie Jrad",
+    "email": "rabie.jrad@orange.com",
+    "eds": ["595087"],
+    "team": "Equipe Nord"
+  },
+  "PJKT8843": {
+    "name": "Bessem Kefifi",
+    "email": "bessem.kefifi@orange.com",
+    "eds": ["595090"],
+    "team": "Equipe Cap-Bon"
+  },
+  "CLQN1981": {
+  "name": "Seifeddine Dridi",
+  "email": "seifeddine.dridi@orange.com",
+  "eds": [
+    { "id": "595087", "team": "Equipe Nord" },
+    { "id": "595088", "team": "Equipe Centre" },
+    { "id": "595089", "team": "Equipe Sud" },
+    { "id": "595090", "team": "Equipe Cap-Bon" }
+  ]
+}
+}
